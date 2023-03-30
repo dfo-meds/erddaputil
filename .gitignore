@@ -1,0 +1,6 @@
+/venv/
+/dist/
+/src/*.egg-info/
+/.git
+/.idea/=
+__pycache__
