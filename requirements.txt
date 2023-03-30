@@ -1,0 +1,11 @@
+zirconium
+autoinject
+zrlog
+graceful_shutdown
+click
+pyyaml
+toml
+flask
+prometheus_client
+requests
+aiohttp
