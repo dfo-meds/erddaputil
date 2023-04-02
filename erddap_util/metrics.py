@@ -101,7 +101,7 @@ class _ScriptEnumMetric(_ScriptMetric):
         pass
 
 
-class _MetricSendThread(threading.Thread):
+class LocalPrometheusSendThread(threading.Thread):
 
     config: zr.ApplicationConfig = None
 
@@ -109,18 +109,23 @@ class _MetricSendThread(threading.Thread):
     def __init__(self):
         super().__init__()
         self.messages = queue.SimpleQueue()
-        self._halt = False
-        self._wait_time = 0.25
-        self._endpoint = self.config.as_str(("erddaputil", "metrics_path"), "http://localhost:5000/push")
-        self._log = logging.getLogger("erddaputil.sendmetrics")
+        self._halt = threading.Event()
+        self._wait_time = self.config.as_float(("erddaputil", "localprom", "delay_seconds"), default=0.25)
+        host = self.config.as_str(("erddaputil", "localprom", "host"), default="localhost")
+        port = self.config.as_int(("erddaputil", "localprom", "port"), default=5000)
+        self._endpoint = self.config.as_str(("erddaputil", "localprom", "metrics_path"), default=f"http://{host}:{port}/push")
+        self._log = logging.getLogger("erddaputil.localprom")
         self._send_headers = {}
-        self._max_concurrent_tasks = 10
+        self._max_concurrent_tasks = self.config.as_int(("erddaputil", "localprom", "max_tasks"), default=5)
+        self._max_messages_to_send = self.config.as_int(("erddaputil", "localprom", "batch_size"), default=10)
+        self._message_wait_time = self.config.as_float(("erddaputil", "localprom", "batch_wait_seconds"), default=1)
+        self._active_tasks = []
 
     def halt(self):
-        self._halt = True
+        self._halt.set()
 
     def send_message(self, metric: _Metric):
-        if self._halt:
+        if self._halt.is_set():
             return False
         self.messages.put_nowait(metric)
         return True
@@ -129,41 +134,59 @@ class _MetricSendThread(threading.Thread):
     def run(self):
         return asyncio.run(self._async_entry_point())
 
-    async def _handle_metric(self, metric: _Metric, session):
-        async with session.post(self._endpoint, json=metric.to_dict(), headers=self._send_headers) as resp:
+    async def _handle_metrics(self, metrics: list, session):
+        async with session.post(self._endpoint, json={"metrics": [metric.to_dict() for metric in metrics]}, headers=self._send_headers) as resp:
             info = await resp.json()
             if not info["status"] == "success":
-                logging.getLogger("erddaputil.metrics").error(info["error"])
+                for error in info["errors"]:
+                    self._log.error(error)
+
+    def _batch_send(self, session) -> bool:
+        metrics = []
+        waited_one = False
+        # Round one
+        while len(metrics) < self._max_messages_to_send:
+            try:
+                metric = self.messages.get_nowait()
+                metrics.append(metric)
+                continue
+            except queue.Empty:
+                if self._message_wait_time > 0 and not waited_one:
+                    waited_one = True
+                    await asyncio.sleep(self._message_wait_time)
+                    continue
+                break
+        if metrics:
+            self._active_tasks.append(asyncio.create_task(self._handle_metrics(metrics, session)))
+            return True
+        return False
 
     async def _async_entry_point(self):
         async with aiohttp.ClientSession() as session:
-            active_tasks = []
             while True:
-                try:
-                    metric = self.messages.get_nowait()
-                    active_tasks.append(asyncio.create_task(self._handle_metric(metric, session)))
-                    if len(active_tasks) >= self._max_concurrent_tasks:
-                        _, active_tasks = await asyncio.wait(active_tasks, timeout=self._wait_time, return_when=asyncio.FIRST_COMPLETED)
-                except queue.Empty:
-                    if self._halt:
-                        break
-                    if active_tasks:
-                        # We can work on and update our tasks then here
-                        _, active_tasks = await asyncio.wait(active_tasks, timeout=self._wait_time, return_when=asyncio.ALL_COMPLETED)
-                    else:
-                        await asyncio.sleep(self._wait_time)
-            while active_tasks:
-                logging.getLogger("erddaputil.metrics").out(f"Cleaning up {len(active_tasks)} tasks...")
-                _, active_tasks = await asyncio.wait(active_tasks, timeout=self._wait_time, return_when=asyncio.ALL_COMPLETED)
+                if self._halt.is_set():
+                    while not self.messages.empty():
+                        if not self._batch_send(session):
+                            break
+                    break
+                while len(self._active_tasks) < self._max_concurrent_tasks and not self.messages.empty():
+                    self._batch_send(session)
+                _, self._active_tasks = await asyncio.wait(self._active_tasks, timeout=self._wait_time, return_when=asyncio.FIRST_COMPLETED)
+            self._log.out(f"Cleaning up {len(self._active_tasks)} tasks...")
+            while self._active_tasks:
+                _, self._active_tasks = await asyncio.wait(self._active_tasks, timeout=self._wait_time, return_when=asyncio.ALL_COMPLETED)
 
 
 @injector.injectable_global
 class ScriptMetrics:
 
+    config: zr.ApplicationConfig = None
+
+    @injector.construct
     def __init__(self):
         self._cache = {}
         self._lock = threading.RLock()
-        self._sender = _MetricSendThread()
+        self._sender = LocalPrometheusSendThread()
         self._sender.start()
 
     def __cleanup__(self):

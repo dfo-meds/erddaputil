@@ -1,6 +1,5 @@
 import logging
 import threading
-import time
 import zirconium as zr
 from autoinject import injector
 from .metrics import ScriptMetrics
@@ -15,12 +14,31 @@ class ErddapUtilError(Exception):
 
 class ErddapManagementDaemon:
 
-    def __init__(self, daemon_classes: dict, check_interval: int = 60):
+    cfg: zr.ApplicationConfig = None
+
+    @injector.construct
+    def __init__(self, daemon_classes: dict, check_interval: int = None):
         self.daemon_classes = daemon_classes
         self.log = logging.getLogger("erddaputil.daemon")
         self._executing_threads = {}
-        self._halting = False
-        self._recheck_interval = check_interval
+        self._halt = threading.Event()
+        if check_interval is None:
+            self._recheck_interval = self.cfg.as_int(("erddaputil", "daemon", "recheck_interval_seconds"), default=120)
+        else:
+            self._recheck_interval = check_interval
+        auto_enable = self.cfg.get(("erddaputil", "daemon", "auto_enable"), default=[]) or []
+        for daemon_name in auto_enable:
+            if daemon_name not in self.daemon_classes:
+                self.daemon_classes[daemon_name] = auto_enable[daemon_name]
+        disabled = self.cfg.get(("erddaputil", "daemon", "disabled_daemons"), default=[]) or []
+        for daemon_name in disabled:
+            if daemon_name in self.daemon_classes:
+                self.daemon_classes[daemon_name] = False
+        for daemon_name in self.daemon_classes:
+            if self.daemon_classes[daemon_name] is False or self.daemon_classes[daemon_name] is None:
+                del self.daemon_classes[daemon_name]
+        if not self.daemon_classes:
+            raise ValueError("No daemons are configured to run")
 
     @injector.inject
     def start(self, metrics: ScriptMetrics = None):
@@ -30,16 +48,17 @@ class ErddapManagementDaemon:
             self.log.info(f"Starting daemon {daemon_name}")
             self._executing_threads[daemon_name] = self.daemon_classes[daemon_name](False)
             self._executing_threads[daemon_name].start()
-        while not self._halting:
+        while not self._halt:
             try:
                 for daemon_name in self._executing_threads:
                     if not self._executing_threads[daemon_name].is_alive():
                         self.log.warning(f"Restarting daemon {daemon_name}")
                         self._executing_threads[daemon_name] = self.daemon_classes[daemon_name](False)
                         self._executing_threads[daemon_name].start()
-                time.sleep(self._recheck_interval)
+                self._halt.wait(self._recheck_interval)
             except (KeyboardInterrupt, SystemExit) as ex:
-                self._halting = True
+                self._halt.set()
+                break
         for daemon_name in self._executing_threads:
             self._executing_threads[daemon_name].halt()
         for daemon_name in self._executing_threads:
@@ -62,7 +81,7 @@ class ErddapUtil(threading.Thread):
     metrics: ScriptMetrics = None
 
     @injector.construct
-    def __init__(self, util_name: str, raise_error: bool = True, default_sleep_time:int = 5):
+    def __init__(self, util_name: str, raise_error: bool = True, default_sleep_time: int = 5):
         super().__init__()
         self.log = logging.getLogger(f"erddaputil.{util_name}")
         self._raise_error = raise_error
@@ -74,8 +93,8 @@ class ErddapUtil(threading.Thread):
         self._interrupt_counter = self.metrics.counter(f"{self.metric_prefix}_executions_total", {"result": "interrupted"})
         self._has_been_init = False
         self.daemon = True
-        self._break_flag = False
-        self.wait_time = self.config.as_int(("erddaputil", util_name, "wait_time"), default=default_sleep_time)
+        self._halt = threading.Event()
+        self.wait_time = self.config.as_int(("erddaputil", util_name, "wait_time_seconds"), default=default_sleep_time)
 
     def log_or_raise(self, message: str, exc_cls: type = None, original: Exception = None):
         self._error_counter.increment()
@@ -90,18 +109,14 @@ class ErddapUtil(threading.Thread):
             self.log.error(message)
 
     def halt(self):
-        self._break_flag = True
+        self._halt.set()
 
     def run(self):
         try:
-            while not self._break_flag:
+            while not self._halt:
                 try:
                     self.run_once(False)
-                    # this method of sleeping allows the program to break within a second as needed
-                    for i in range(0, self.wait_time):
-                        if self._break_flag:
-                            break
-                        time.sleep(1)
+                    self._halt.wait(self.wait_time)
                 except (SystemExit, KeyboardInterrupt, NotImplementedError) as ex:
                     raise ex
         finally:
@@ -114,6 +129,9 @@ class ErddapUtil(threading.Thread):
             if not self._has_been_init:
                 self._has_been_init = True
                 self._init()
+            # Extra check for breaking here
+            if self._halt.set():
+                return
             result = self._run()
         except ErddapUtilError as ex:
             # These have already been logged
@@ -125,8 +143,6 @@ class ErddapUtil(threading.Thread):
         except Exception as ex:
             self.log_or_raise(str(ex), original=ex)
         finally:
-            print(was_interrupted)
-            print(result)
             if was_interrupted:
                 pass
             elif result is False:

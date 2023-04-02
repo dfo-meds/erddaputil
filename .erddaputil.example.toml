@@ -1,0 +1,37 @@
+[erddaputil]
+big_parent_dir = ""
+
+[erddaputil.daemon]
+recheck_interval_seconds = 120
+disabled_daemons = ["logman"]
+
+[erddaputil.daemon.auto_enable]
+logman = "erddap_util.logman.ErddapLogManager"
+
+[erddaputil.logman]
+wait_time_seconds = 14400
+retention_days = 31
+log_file_prefixes = ["logArchivedAt", "logPreviousArchivedAt", "emailLog"]
+
+[erddaputil.logtail]
+wait_time_seconds = 5
+output_dir = ""
+chunk_size = 1000
+batch_size = 10000
+min_size_for_hash = 1000
+read_size_for_hash = 10000
+buffer_size = 20000
+
+[erddaputil.metrics]
+sender = "erddap_util.metrics.LocalPrometheusSendThread"
+
+
+[erddaputil.localprom]
+# For LocalPrometheusSendThread
+host = "localhost"
+port = 5000
+metrics_path = "http://localhost:5000/push"
+delay_seconds = 0.25
+max_tasks = 5
+batch_size = 10
+batch_wait_seconds = 1
