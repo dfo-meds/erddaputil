@@ -1,5 +1,9 @@
 [erddaputil]
-big_parent_dir = ""
+big_parent_dir = "/erddapDirectory"
+datasets_file = "/usr/local/tomcat/content/erddap/datasets.xml"
+datasets_template = "/usr/local/tomcat/content/erddap/datasets.template.xml"
+datasets_d = "/usr/local/tomcat/content/datasets.d"
+
 
 [erddaputil.daemon]
 recheck_interval_seconds = 120

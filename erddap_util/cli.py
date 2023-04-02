@@ -23,6 +23,29 @@ def reload_dataset(dataset_id: str, flag: int):
 
 
 @cli.command
+def compile_datasets():
+    from .datasets import ErddapDatasetManager
+    edm = ErddapDatasetManager()
+    edm.compile_datasets()
+
+
+@cli.command
+@click.argument("dataset_id")
+def activate_dataset(dataset_id: str):
+    from .datasets import ErddapDatasetManager
+    edm = ErddapDatasetManager()
+    edm.set_active_flag(dataset_id, True)
+
+
+@cli.command
+@click.argument("dataset_id")
+def deactivate_dataset(dataset_id: str):
+    from .datasets import ErddapDatasetManager
+    edm = ErddapDatasetManager()
+    edm.set_active_flag(dataset_id, False)
+
+
+@cli.command
 def clean_logs():
     from .logman import ErddapLogManager
     from .daemon import ErddapManagementDaemon
