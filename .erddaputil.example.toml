@@ -21,6 +21,8 @@ batch_size = 10000
 min_size_for_hash = 1000
 read_size_for_hash = 10000
 buffer_size = 20000
+max_retries = 30
+retry_delay_seconds = 15
 
 [erddaputil.metrics]
 sender = "erddap_util.metrics.LocalPrometheusSendThread"

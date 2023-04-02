@@ -26,7 +26,7 @@ class WebCollectedMetrics:
         self._metrics = {}
         self._lock = RLock()
 
-    def handle_request(self, metric_type: str, metric_name: str, labels: dict, description: str, method: str, kwargs: dict):
+    def handle_request(self, metric_type: str, metric_name: str, labels: dict, description: str, method: str, arguments: dict):
         metric_type = metric_type.lower()
         metric_name = metric_name.lower()
         key = f"{metric_type}__{metric_name}"
@@ -41,7 +41,7 @@ class WebCollectedMetrics:
                         labels=labels,
                         description=description
                     )
-        self._metrics[key].handle_request(labels=labels, method=method, **kwargs)
+        self._metrics[key].handle_request(labels=labels, method=method, **arguments)
 
     def _build_metric(self, type_name, metric_name, description, labels, **kwargs):
         metric = None
@@ -67,17 +67,21 @@ app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {
 @app.route("/push", methods=["POST"])
 @injector.inject
 def handle_metrics(config: zr.ApplicationConfig = None, wc_metrics: WebCollectedMetrics = None):
-    try:
-        # TODO: security options
-        print(flask.request.json)
-        wc_metrics.handle_request(
-            metric_type=flask.request.json.pop('metric_type'),
-            metric_name=flask.request.json.pop('metric_name'),
-            labels=flask.request.json.pop('labels', {}),
-            description=flask.request.json.pop('description', ''),
-            method=flask.request.json.pop('method', ''),
-            kwargs=flask.request.json.pop('arguments', {})
-        )
-        return {'status': 'success'}, 200
-    except Exception as ex:
-        return {'status': 'error', 'error': str(ex)}, 500
+    # TODO: security options
+    errors = []
+    result = "success"
+    if "metrics" in flask.request.json:
+        for json_metric in flask.request.json.get("metrics"):
+            try:
+                wc_metrics.handle_request(**json_metric)
+            except Exception as ex:
+                errors.append(str(ex))
+                result = "error"
+    else:
+        try:
+            wc_metrics.handle_request(**flask.request.json)
+        except Exception as ex:
+            errors.append(str(ex))
+            result = "error"
+    return {'status': result, 'errors': errors}, 200 if result == 'success' else 500
+

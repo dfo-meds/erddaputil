@@ -119,6 +119,8 @@ class LocalPrometheusSendThread(threading.Thread):
         self._max_concurrent_tasks = self.config.as_int(("erddaputil", "localprom", "max_tasks"), default=5)
         self._max_messages_to_send = self.config.as_int(("erddaputil", "localprom", "batch_size"), default=10)
         self._message_wait_time = self.config.as_float(("erddaputil", "localprom", "batch_wait_seconds"), default=1)
+        self._max_retries = self.config.as_int(("erddaputil", "localprom", "max_retries"), default=30)
+        self._retry_delay = self.config.as_float(("erddaputil", "localprom", "retry_delay_seconds"), default=15)
         self._active_tasks = []
 
     def halt(self):
@@ -135,11 +137,20 @@ class LocalPrometheusSendThread(threading.Thread):
         return asyncio.run(self._async_entry_point())
 
     async def _handle_metrics(self, metrics: list, session):
-        async with session.post(self._endpoint, json={"metrics": [metric.to_dict() for metric in metrics]}, headers=self._send_headers) as resp:
-            info = await resp.json()
-            if not info["status"] == "success":
-                for error in info["errors"]:
-                    self._log.error(error)
+        json_data = {"metrics": [metric.to_dict() for metric in metrics]}
+        retries = self._max_retries
+        retry_forever = self._max_retries == 0
+        while retry_forever or retries > 0:
+            async with session.post(self._endpoint, json=json_data, headers=self._send_headers) as resp:
+                info = await resp.json()
+                if not info["status"] == "success":
+                    for error in info["errors"]:
+                        self._log.error(error)
+                    if retries > 0:
+                        retries -= 1
+                else:
+                    return
+            await asyncio.sleep(self._retry_delay)
 
     def _batch_send(self, session) -> bool:
         metrics = []
