@@ -24,7 +24,7 @@ def init_util(extra_files=None):
             config.register_default_file(path / ".erddaputil.defaults.toml")
             config.register_file(path / ".erddaputil.yaml")
             config.register_file(path / ".erddaputil.toml")
-            for file in extra_paths or []:
+            for file in extra_files or []:
                 config.register_file(path / file)
 
     zrlog.init_logging()
