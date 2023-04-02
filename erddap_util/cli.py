@@ -12,8 +12,14 @@ def cli():
 
 
 @cli.command
-def datasets_reload():
+@click.option("--soft", "flag", flag_value=0, default=True)
+@click.option("--bad-files", "flag", flag_value=1)
+@click.option("--hard", "flag", flag_value=2)
+@click.argument("dataset_id")
+def reload_dataset(dataset_id: str, flag: int):
     from .datasets import ErddapDatasetManager
+    edm = ErddapDatasetManager()
+    edm.reload_dataset(dataset_id, flag)
 
 
 @cli.command
