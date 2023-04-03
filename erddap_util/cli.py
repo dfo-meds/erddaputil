@@ -27,6 +27,7 @@ def compile_datasets():
     from .datasets import ErddapDatasetManager
     edm = ErddapDatasetManager()
     edm.compile_datasets()
+    edm.metrics.halt()
 
 
 @cli.command
@@ -35,7 +36,7 @@ def activate_dataset(dataset_id: str):
     from .datasets import ErddapDatasetManager
     edm = ErddapDatasetManager()
     edm.set_active_flag(dataset_id, True)
-
+    edm.metrics.halt()
 
 @cli.command
 @click.argument("dataset_id")
@@ -43,7 +44,7 @@ def deactivate_dataset(dataset_id: str):
     from .datasets import ErddapDatasetManager
     edm = ErddapDatasetManager()
     edm.set_active_flag(dataset_id, False)
-
+    edm.metrics.halt()
 
 @cli.command
 def clean_logs():

@@ -5,6 +5,7 @@ import zirconium as zr
 import logging
 import aiohttp
 import asyncio
+from .common import load_object
 
 
 class _Metric:
@@ -152,7 +153,7 @@ class LocalPrometheusSendThread(threading.Thread):
                     return
             await asyncio.sleep(self._retry_delay)
 
-    def _batch_send(self, session) -> bool:
+    async def _batch_send(self, session) -> bool:
         metrics = []
         waited_one = False
         # Round one
@@ -181,8 +182,11 @@ class LocalPrometheusSendThread(threading.Thread):
                             break
                     break
                 while len(self._active_tasks) < self._max_concurrent_tasks and not self.messages.empty():
-                    self._batch_send(session)
-                _, self._active_tasks = await asyncio.wait(self._active_tasks, timeout=self._wait_time, return_when=asyncio.FIRST_COMPLETED)
+                    await self._batch_send(session)
+                if self._active_tasks:
+                    _, self._active_tasks = await asyncio.wait(self._active_tasks, timeout=self._wait_time, return_when=asyncio.FIRST_COMPLETED)
+                else:
+                    await asyncio.sleep(self._wait_time)
             self._log.out(f"Cleaning up {len(self._active_tasks)} tasks...")
             while self._active_tasks:
                 _, self._active_tasks = await asyncio.wait(self._active_tasks, timeout=self._wait_time, return_when=asyncio.ALL_COMPLETED)
@@ -197,18 +201,22 @@ class ScriptMetrics:
     def __init__(self):
         self._cache = {}
         self._lock = threading.RLock()
-        self._sender = LocalPrometheusSendThread()
-        self._sender.start()
+        self._sender = None
+        if self.config.is_truthy(("erddaputil", "metrics", "sender")):
+            self._sender = load_object(self.config.get(("erddaputil", "metrics", "sender")))()
+            self._sender.start()
 
     def __cleanup__(self):
         self.halt()
 
     def halt(self):
-        self._sender.halt()
-        self._sender.join()
+        if self._sender:
+            self._sender.halt()
+            self._sender.join()
 
     def send_message(self, metric: _Metric):
-        self._sender.send_message(metric)
+        if self._sender:
+            self._sender.send_message(metric)
 
     def enum(self, name: str) -> _ScriptEnumMetric:
         return self._cached_metric(_ScriptEnumMetric, name)

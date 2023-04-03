@@ -3,6 +3,7 @@ import threading
 import zirconium as zr
 from autoinject import injector
 from .metrics import ScriptMetrics
+from .common import load_object
 
 
 class ErddapUtilError(Exception):
@@ -40,20 +41,26 @@ class ErddapManagementDaemon:
         if not self.daemon_classes:
             raise ValueError("No daemons are configured to run")
 
+    def _get_daemon_obj(self, obj_cls):
+        if isinstance(obj_cls, str):
+            return load_object(obj_cls)(False)
+        else:
+            return obj_cls(False)
+
     @injector.inject
     def start(self, metrics: ScriptMetrics = None):
         if not self.daemon_classes:
             return
         for daemon_name in self.daemon_classes:
             self.log.info(f"Starting daemon {daemon_name}")
-            self._executing_threads[daemon_name] = self.daemon_classes[daemon_name](False)
+            self._executing_threads[daemon_name] = self._get_daemon_obj(self.daemon_classes[daemon_name])
             self._executing_threads[daemon_name].start()
         while not self._halt:
             try:
                 for daemon_name in self._executing_threads:
                     if not self._executing_threads[daemon_name].is_alive():
                         self.log.warning(f"Restarting daemon {daemon_name}")
-                        self._executing_threads[daemon_name] = self.daemon_classes[daemon_name](False)
+                        self._executing_threads[daemon_name] = self._get_daemon_obj(self.daemon_classes[daemon_name])
                         self._executing_threads[daemon_name].start()
                 self._halt.wait(self._recheck_interval)
             except (KeyboardInterrupt, SystemExit) as ex:

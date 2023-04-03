@@ -28,9 +28,13 @@ buffer_size = 20000
 max_retries = 30
 retry_delay_seconds = 15
 
+[erddaputil.datasets]
+compile_with_errors = false
+backup_directory = "/usr/local/tomcat/content/erddap/backups"
+backup_retention_days = 30
+
 [erddaputil.metrics]
 sender = "erddap_util.metrics.LocalPrometheusSendThread"
-
 
 [erddaputil.localprom]
 # For LocalPrometheusSendThread
