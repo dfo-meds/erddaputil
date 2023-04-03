@@ -56,6 +56,8 @@ class ErddapDatasetManager:
         elif flag == ErddapDatasetManager.HARD_FLAG:
             subdir = "hardFlag"
         flag_file = self.bpd / subdir / dataset_id
+        if not flag_file.parent.exists():
+            flag_file.parent.mkdir()
         with open(flag_file, "w") as h:
             h.write("1")
 
@@ -67,7 +69,6 @@ class ErddapDatasetManager:
         for file in os.scandir(self.datasets_d):
             if self._try_setting_active_flag(pathlib.Path(file.path), dataset_id, active_flag):
                 self.compile_datasets()
-                self.reload_dataset(dataset_id)
                 break
         else:
             self._warnings.increment()
@@ -173,4 +174,14 @@ class ErddapDatasetManager:
         return h.hexdigest()
 
     def _try_setting_active_flag(self, file_path: pathlib.Path, dataset_id: str, active_flag: bool) -> bool:
-        return False
+        try:
+            config_xml = ET.parse(file_path)
+            config_root = config_xml.getroot()
+            if not dataset_id == config_root.attrib["datasetID"]:
+                return False
+            config_root.attrib["active"] = "true" if active_flag else "false"
+            config_xml.write(file_path)
+            return True
+        except Exception as ex:
+            self._raise_error("set_flag", str(ex), False)
+            return False
