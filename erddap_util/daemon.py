@@ -35,7 +35,7 @@ class ErddapManagementDaemon:
         for daemon_name in disabled:
             if daemon_name in self.daemon_classes:
                 self.daemon_classes[daemon_name] = False
-        for daemon_name in self.daemon_classes:
+        for daemon_name in [str(x) for x in self.daemon_classes.keys()]:
             if self.daemon_classes[daemon_name] is False or self.daemon_classes[daemon_name] is None:
                 del self.daemon_classes[daemon_name]
         if not self.daemon_classes:

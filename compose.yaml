@@ -1,0 +1,16 @@
+services:
+  metrics:
+    build: .
+    command: ["webserver"]
+    volumes:
+      - "./test_config:/erddap-example"
+      - ".erddaputil.example.toml:/erddap_util/config/.erddaputil.toml"
+    ports:
+      - "8080:9172"
+  erddaputil:
+    build: .
+    volumes:
+      - "./test_config:/erddap-example"
+      - ".erddaputil.example.toml:/erddap_util/config/.erddaputil.toml"
+    depends_on:
+      - metrics

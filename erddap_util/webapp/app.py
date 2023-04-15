@@ -64,10 +64,22 @@ app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {
 })
 
 
+@app.route("/health", methods=["GET"])
+def health_check():
+    return "healthy", 200
+
+
 @app.route("/push", methods=["POST"])
 @injector.inject
 def handle_metrics(config: zr.ApplicationConfig = None, wc_metrics: WebCollectedMetrics = None):
-    # TODO: security options
+    ah = flask.request.headers.get("Authorization", default=None)
+    if ah is None:
+        return {"status": 'error', 'errors': ['access denied']}, 403
+    if not ah[0:7].lower() == 'bearer ':
+        return {"status": 'error', 'errors': ['access denied']}, 403
+    token = ah[7].strip("\r\n\t ")
+    if token != config.get(("erddaputil", "metrics", "security_secret"), default=""):
+        return {"status": 'error', 'errors': ['access denied']}, 403
     errors = []
     result = "success"
     if "metrics" in flask.request.json:

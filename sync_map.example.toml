@@ -1,0 +1,6 @@
+[hello_world]
+source = "foobar"
+target = "test/stuff"
+dataset_id = "12345"
+recrawl = 60
+active = true

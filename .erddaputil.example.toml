@@ -7,7 +7,7 @@ datasets_d = "/usr/local/tomcat/content/datasets.d"
 
 [erddaputil.daemon]
 recheck_interval_seconds = 120
-disabled_daemons = ["logman"]
+#disabled_daemons = ["logman"]
 
 [erddaputil.daemon.auto_enable]
 logman = "erddap_util.logman.ErddapLogManager"
@@ -35,13 +35,30 @@ backup_retention_days = 30
 
 [erddaputil.metrics]
 sender = "erddap_util.metrics.LocalPrometheusSendThread"
+security_secret = "12345ThatsTheSamePasswordAsMyLuggage!"
 
 [erddaputil.localprom]
 # For LocalPrometheusSendThread
 host = "localhost"
-port = 5000
+port = 9712
 metrics_path = "http://localhost:5000/push"
 delay_seconds = 0.25
 max_tasks = 5
 batch_size = 10
 batch_wait_seconds = 1
+
+[logging]
+version = 1
+
+[logging.root]
+level = "INFO"
+handlers = ["console"]
+
+[logging.handlers.console]
+class = "logging.StreamHandler"
+formatter = "brief"
+level = "INFO"
+stream = "ext://sys.stdout"
+
+[logging.formatters.brief]
+format = "%(asctime)s [%(levelname)s] %(message)s"

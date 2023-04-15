@@ -116,7 +116,9 @@ class LocalPrometheusSendThread(threading.Thread):
         port = self.config.as_int(("erddaputil", "localprom", "port"), default=5000)
         self._endpoint = self.config.as_str(("erddaputil", "localprom", "metrics_path"), default=f"http://{host}:{port}/push")
         self._log = logging.getLogger("erddaputil.localprom")
-        self._send_headers = {}
+        self._send_headers = {
+            'Authorization': f'bearer {self.config.get("erddaputil", "metrics", "security_secret")}'
+        }
         self._max_concurrent_tasks = self.config.as_int(("erddaputil", "localprom", "max_tasks"), default=5)
         self._max_messages_to_send = self.config.as_int(("erddaputil", "localprom", "batch_size"), default=10)
         self._message_wait_time = self.config.as_float(("erddaputil", "localprom", "batch_wait_seconds"), default=1)

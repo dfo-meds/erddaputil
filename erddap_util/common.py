@@ -7,7 +7,7 @@ import importlib
 ROOT_DIR = pathlib.Path(__file__).absolute().parent
 
 
-def init_util(extra_files=None):
+def init_util(extra_files=None, override_dir=None):
 
     @zr.configure
     def add_config_files(config: zr.ApplicationConfig):
@@ -16,7 +16,7 @@ def init_util(extra_files=None):
             pathlib.Path("~").expanduser().absolute(),
             pathlib.Path(".").absolute()
         ]
-        extra_paths = os.environ.get("ERDDAPUTIL_CONFIG_PATH", default="")
+        extra_paths = os.environ.get("ERDDAPUTIL_CONFIG_PATHS", default="")
         if extra_paths:
             config_paths.extend([pathlib.Path(x) for x in extra_paths.split(";")])
         for path in config_paths:
