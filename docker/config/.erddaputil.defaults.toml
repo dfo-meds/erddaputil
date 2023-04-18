@@ -1,14 +1,14 @@
 [erddaputil]
-big_parent_dir = "/erddapDirectory"
+big_parent_dir = "/erddap_data/"
 datasets_file = "/usr/local/tomcat/content/erddap/datasets.xml"
 datasets_template = "/erddap_util/docker_config/datasets.template.xml"
-datasets_d = "/erddap_data/.datasets.d"
+datasets_d = "/erddap_data/_raw/.datasets.d/"
 
 [erddaputil.daemon.auto_enable]
 logman = "erddap_util.daemons.logman.ErddapLogManager"
 
 [erddaputil.datasets]
-backup_directory = "/erddap_data/.datasets.bkp"
+backup_directory = "/erddap_data/_raw/.datasets.bkp"
 backup_retention_days = 30
 
 [erddaputil.metrics]
