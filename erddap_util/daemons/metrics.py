@@ -5,7 +5,7 @@ import zirconium as zr
 import logging
 import aiohttp
 import asyncio
-from .common import load_object
+from erddap_util.util.common import load_object
 
 
 class _Metric:
@@ -125,6 +125,7 @@ class LocalPrometheusSendThread(threading.Thread):
         self._max_retries = self.config.as_int(("erddaputil", "localprom", "max_retries"), default=30)
         self._retry_delay = self.config.as_float(("erddaputil", "localprom", "retry_delay_seconds"), default=15)
         self._active_tasks = []
+        self.daemon = True
 
     def halt(self):
         self._halt.set()

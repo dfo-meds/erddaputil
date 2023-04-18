@@ -2,9 +2,11 @@ FROM python:3.9.13-slim-bullseye
 
 VOLUME /erddap_util/config
 
+VOLUME /erddap_data
+
 WORKDIR /erddap_util
 
-ENV ERDDAPUTIL_CONFIG_PATHS=/erddap_util/config
+ENV ERDDAPUTIL_CONFIG_PATHS=/erddap_util/config;/erddap_util/docker_config
 
 RUN pip install --upgrade pip
 
@@ -16,6 +18,8 @@ RUN pip install -r requirements.txt
 
 COPY docker/start.sh start.sh
 RUN chmod +x start.sh
+
+COPY docker/config docker_config
 
 EXPOSE 9172
 

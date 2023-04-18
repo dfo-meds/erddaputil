@@ -1,9 +1,16 @@
 import logging
+import queue
 import threading
+
+import clusterman.cli.app
 import zirconium as zr
 from autoinject import injector
 from .metrics import ScriptMetrics
-from .common import load_object
+from erddap_util.util.common import load_object
+from clusterman.main.controller import SyncController
+from erddap_util.daemons.sync import ErddapSyncManager
+import functools
+import signal
 
 
 class ErddapUtilError(Exception):
@@ -18,15 +25,16 @@ class ErddapManagementDaemon:
     cfg: zr.ApplicationConfig = None
 
     @injector.construct
-    def __init__(self, daemon_classes: dict, check_interval: int = None):
+    def __init__(self, daemon_classes: dict, check_interval: int = None, with_sync: bool = True):
         self.daemon_classes = daemon_classes
+        if with_sync:
+            self.add_sync_daemons()
         self.log = logging.getLogger("erddaputil.daemon")
+        self._sync_app = None
+        self._sync_queue = None
         self._executing_threads = {}
         self._halt = threading.Event()
-        if check_interval is None:
-            self._recheck_interval = self.cfg.as_int(("erddaputil", "daemon", "recheck_interval_seconds"), default=120)
-        else:
-            self._recheck_interval = check_interval
+        self._recheck_interval = 1
         auto_enable = self.cfg.get(("erddaputil", "daemon", "auto_enable"), default=[]) or []
         for daemon_name in auto_enable:
             if daemon_name not in self.daemon_classes:
@@ -41,36 +49,68 @@ class ErddapManagementDaemon:
         if not self.daemon_classes:
             raise ValueError("No daemons are configured to run")
 
-    def _get_daemon_obj(self, obj_cls):
-        if isinstance(obj_cls, str):
-            return load_object(obj_cls)(False)
+    @injector.inject
+    def add_sync_daemons(self, sync_controller: SyncController = None):
+        self._sync_app = clusterman.cli.app.create_app()
+        self._sync_queue = queue.SimpleQueue()
+        with self._sync_app.app_context():
+            sync_controller.create_databases()
+        if self.cfg.is_truthy(("clusterman", "ampq", "broker_uri")):
+            self.daemon_classes["sync_ampq"] = ("clusterman.main.aqmp.MessageQueueListener", [self._sync_app])
+        self.daemon_classes["sync_cli"] = ("clusterman.main.mainline.MainListener", [self._sync_app])
+        self.daemon_classes["sync_refresh"] = ("clusterman.main.processing.RefreshController", [self._sync_app])
+        self.daemon_classes["sync_processor"] = ("clusterman.main.processing.FileSyncController", [self._sync_app])
+        self.daemon_classes["sync_manager"] = ("erddap_util.daemons.sync.ErddapSyncManager", [self._sync_queue])
+        sync_controller.add_result_queue(self._sync_queue)
+
+    def _get_daemon_obj(self, obj_def):
+        args = []
+        kwargs = {}
+        if isinstance(obj_def, tuple):
+            obj_cls = obj_def[0]
+            args = (obj_def[1] or []) if len(obj_def) > 1 else []
+            kwargs = (obj_def[2] or {}) if len(obj_def) > 2 else {}
         else:
-            return obj_cls(False)
+            obj_cls = obj_def
+        if isinstance(obj_cls, str):
+            return load_object(obj_cls)(*args, **kwargs)
+        else:
+            return obj_cls(*args, **kwargs)
+
+    def halt(self, *args, **kwargs):
+        self._halt.set()
+        for daemon_name in self._executing_threads:
+            if self._executing_threads[daemon_name].is_alive():
+                self._executing_threads[daemon_name].halt()
 
     @injector.inject
-    def start(self, metrics: ScriptMetrics = None):
+    def run_forever(self, metrics: ScriptMetrics = None):
         if not self.daemon_classes:
             return
-        for daemon_name in self.daemon_classes:
-            self.log.info(f"Starting daemon {daemon_name}")
-            self._executing_threads[daemon_name] = self._get_daemon_obj(self.daemon_classes[daemon_name])
-            self._executing_threads[daemon_name].start()
-        while not self._halt:
-            try:
-                for daemon_name in self._executing_threads:
-                    if not self._executing_threads[daemon_name].is_alive():
-                        self.log.warning(f"Restarting daemon {daemon_name}")
-                        self._executing_threads[daemon_name] = self._get_daemon_obj(self.daemon_classes[daemon_name])
-                        self._executing_threads[daemon_name].start()
+        signal.signal(signal.SIGINT, self.halt)
+        try:
+            self._boot_daemons()
+            while not self._halt.is_set():
+                self._boot_daemons()
                 self._halt.wait(self._recheck_interval)
-            except (KeyboardInterrupt, SystemExit) as ex:
-                self._halt.set()
-                break
-        for daemon_name in self._executing_threads:
-            self._executing_threads[daemon_name].halt()
+        except Exception as ex:
+            self.log.exception(ex)
+        finally:
+            self.halt()
         for daemon_name in self._executing_threads:
             self._executing_threads[daemon_name].join()
         metrics.halt()
+
+    def _boot_daemons(self):
+        for daemon_name in self.daemon_classes:
+            if daemon_name in self._executing_threads and self._executing_threads[daemon_name].is_alive():
+                continue
+            if daemon_name not in self._executing_threads:
+                self.log.info(f"Starting daemon {daemon_name}")
+            else:
+                self.log.warning(f"Restarting daemon {daemon_name}")
+            self._executing_threads[daemon_name] = self._get_daemon_obj(self.daemon_classes[daemon_name])
+            self._executing_threads[daemon_name].start()
 
     @staticmethod
     @injector.inject
@@ -88,7 +128,7 @@ class ErddapUtil(threading.Thread):
     metrics: ScriptMetrics = None
 
     @injector.construct
-    def __init__(self, util_name: str, raise_error: bool = True, default_sleep_time: int = 5):
+    def __init__(self, util_name: str, raise_error: bool = True, default_sleep_time: int = 1):
         super().__init__()
         self.log = logging.getLogger(f"erddaputil.{util_name}")
         self._raise_error = raise_error
@@ -118,6 +158,7 @@ class ErddapUtil(threading.Thread):
     def halt(self):
         self._halt.set()
 
+    @injector.as_thread_run
     def run(self):
         try:
             while not self._halt:

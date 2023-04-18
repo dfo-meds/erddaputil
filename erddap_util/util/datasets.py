@@ -1,6 +1,6 @@
 import zirconium as zr
 from autoinject import injector
-from .metrics import ScriptMetrics
+from erddap_util.daemons.metrics import ScriptMetrics
 import os
 import hashlib
 import pathlib
@@ -61,6 +61,12 @@ class ErddapDatasetManager:
         with open(flag_file, "w") as h:
             h.write("1")
 
+    def reload_all_datasets(self, flag: int = 0):
+        datasets_xml = ET.parse(self.datasets_file)
+        datasets_root = datasets_xml.getroot()
+        for ds in datasets_root.iter("dataset"):
+            self.reload_dataset(ds.attrib['datasetID'], flag)
+
     def set_active_flag(self, dataset_id: str, active_flag: bool):
         if not (self.datasets_d and self.datasets_d.exists()):
             self._errors.increment()
@@ -74,7 +80,7 @@ class ErddapDatasetManager:
             self._warnings.increment()
             self._warning("set_active", f"Could not find dataset {dataset_id} in {self.datasets_d}")
 
-    def compile_datasets(self, compile_with_errors: bool = None):
+    def compile_datasets(self, compile_with_errors: bool = None, reload_all_datasets: bool = False):
         self.metrics.counter("erddaputil_dataset_tools_compile_attempts").increment()
         self.log.out("Recompiling datasets")
         self.log.info("Checking parameters...")
@@ -141,6 +147,8 @@ class ErddapDatasetManager:
             ds_id = ds.attrib['datasetID']
             if ds_id not in original_dataset_hashes or original_dataset_hashes[ds_id] != updated_hash:
                 self.reload_dataset(ds_id, 2)
+            elif reload_all_datasets:
+                self.reload_dataset(ds_id, 1)
 
         self.log.info("Cleaning up backups...")
         gate = (datetime.datetime.now() - datetime.timedelta(days=self._backup_retention_days)).timestamp()

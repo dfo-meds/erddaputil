@@ -1,9 +1,10 @@
 import flask
-from prometheus_client import make_wsgi_app, Counter
-from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from prometheus_client import Counter
 from autoinject import injector
 import zirconium as zr
 from threading import RLock
+
+bp = flask.Blueprint("metrics", __name__)
 
 
 class PromMetricWrapper:
@@ -54,22 +55,12 @@ class WebCollectedMetrics:
         return PromMetricWrapper(metric, use_labels)
 
 
-app = flask.Flask(__name__)
-
-from erddap_util.common import init_util
-init_util([".erddaputil.app.yaml", ".erddaputil.app.toml"])
-
-app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {
-    '/metrics': make_wsgi_app()
-})
-
-
-@app.route("/health", methods=["GET"])
+@bp.route("/health", methods=["GET"])
 def health_check():
     return "healthy", 200
 
 
-@app.route("/push", methods=["POST"])
+@bp.route("/push", methods=["POST"])
 @injector.inject
 def handle_metrics(config: zr.ApplicationConfig = None, wc_metrics: WebCollectedMetrics = None):
     ah = flask.request.headers.get("Authorization", default=None)

@@ -4,7 +4,7 @@ import pathlib
 import os
 import importlib
 
-ROOT_DIR = pathlib.Path(__file__).absolute().parent
+ROOT_DIR = pathlib.Path(__file__).absolute().parent.parent
 
 
 def init_util(extra_files=None, override_dir=None):
@@ -16,17 +16,10 @@ def init_util(extra_files=None, override_dir=None):
             pathlib.Path("~").expanduser().absolute(),
             pathlib.Path(".").absolute()
         ]
-        extra_paths = os.environ.get("ERDDAPUTIL_CONFIG_PATHS", default="")
-        if extra_paths:
-            config_paths.extend([pathlib.Path(x) for x in extra_paths.split(";")])
-        for path in config_paths:
-            config.register_default_file(path / ".erddaputil.defaults.yaml")
-            config.register_default_file(path / ".erddaputil.defaults.toml")
-            config.register_file(path / ".erddaputil.yaml")
-            config.register_file(path / ".erddaputil.toml")
-            for file in extra_files or []:
-                config.register_file(path / file)
-
+        config_paths.extend(os.environ.get("ERDDAPUTIL_CONFIG_PATHS", default="").split(";"))
+        config.register_files(config_paths,
+                              [".clusterman.toml", ".erddaputil.toml"],
+                              [".clusterman.defaults.toml", ".erddaputil.defaults.toml"])
     zrlog.init_logging()
 
 

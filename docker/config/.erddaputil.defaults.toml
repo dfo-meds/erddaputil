@@ -1,0 +1,31 @@
+[erddaputil]
+big_parent_dir = "/erddapDirectory"
+datasets_file = "/usr/local/tomcat/content/erddap/datasets.xml"
+datasets_template = "/erddap_util/docker_config/datasets.template.xml"
+datasets_d = "/erddap_data/.datasets.d"
+
+[erddaputil.daemon.auto_enable]
+logman = "erddap_util.daemons.logman.ErddapLogManager"
+
+[erddaputil.datasets]
+backup_directory = "/erddap_data/.datasets.bkp"
+backup_retention_days = 30
+
+[erddaputil.metrics]
+sender = "erddap_util.daemons.metrics.LocalPrometheusSendThread"
+
+[logging]
+version = 1
+
+[logging.root]
+level = "OUT"
+handlers = ["console"]
+
+[logging.handlers.console]
+class = "logging.StreamHandler"
+formatter = "brief"
+level = "OUT"
+stream = "ext://sys.stdout"
+
+[logging.formatters.brief]
+format = "%(asctime)s [%(levelname)s] %(message)s"

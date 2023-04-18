@@ -1,51 +1,55 @@
 [erddaputil]
-big_parent_dir = "/erddapDirectory"
-datasets_file = "/usr/local/tomcat/content/erddap/datasets.xml"
-datasets_template = "/usr/local/tomcat/content/erddap/datasets.template.xml"
-datasets_d = "/usr/local/tomcat/content/datasets.d"
-
+big_parent_dir = "/erddap-example/bpd"
+datasets_file = "/erddap-example/content/datasets.xml"
+datasets_template = "/erddap-example/datasets.template.xml"
+datasets_d = "/cluster_data/datasets.d"
 
 [erddaputil.daemon]
-recheck_interval_seconds = 120
+#recheck_interval_seconds = 120
 #disabled_daemons = ["logman"]
 
-[erddaputil.daemon.auto_enable]
-logman = "erddap_util.logman.ErddapLogManager"
+#[erddaputil.daemon.auto_enable]
+#logman = "erddap_util.logman.ErddapLogManager"
 
 [erddaputil.logman]
-wait_time_seconds = 14400
-retention_days = 31
-log_file_prefixes = ["logArchivedAt", "logPreviousArchivedAt", "emailLog"]
+#wait_time_seconds = 14400
+#retention_days = 31
+#log_file_prefixes = ["logArchivedAt", "logPreviousArchivedAt", "emailLog"]
 
-[erddaputil.logtail]
-wait_time_seconds = 5
-output_dir = ""
-chunk_size = 1000
-batch_size = 10000
-min_size_for_hash = 1000
-read_size_for_hash = 10000
-buffer_size = 20000
-max_retries = 30
-retry_delay_seconds = 15
+#[erddaputil.logtail]
+#wait_time_seconds = 5
+#output_dir = ""
+#chunk_size = 1000
+#batch_size = 10000
+#min_size_for_hash = 1000
+#read_size_for_hash = 10000
+#buffer_size = 20000
+#max_retries = 30
+#retry_delay_seconds = 15
 
-[erddaputil.datasets]
-compile_with_errors = false
-backup_directory = "/usr/local/tomcat/content/erddap/backups"
-backup_retention_days = 30
+#[erddaputil.sync]
+#max_deferred_datasets = 1
+#max_dataset_reload_delay_seconds = 300
+#max_config_reload_delay_seconds = 300
 
-[erddaputil.metrics]
-sender = "erddap_util.metrics.LocalPrometheusSendThread"
-security_secret = "12345ThatsTheSamePasswordAsMyLuggage!"
+#[erddaputil.datasets]
+#compile_with_errors = false
+#backup_directory = "/usr/local/tomcat/content/erddap/backups"
+#backup_retention_days = 30
 
-[erddaputil.localprom]
+#[erddaputil.metrics]
+#sender = "erddap_util.daemons.metrics.LocalPrometheusSendThread"
+#security_secret = "12345ThatsTheSamePasswordAsMyLuggage!"
+
+#[erddaputil.localprom]
 # For LocalPrometheusSendThread
-host = "localhost"
-port = 9712
-metrics_path = "http://localhost:5000/push"
-delay_seconds = 0.25
-max_tasks = 5
-batch_size = 10
-batch_wait_seconds = 1
+#host = "localhost"
+#port = 9712
+#metrics_path = "http://localhost:5000/push"
+#delay_seconds = 0.25
+#max_tasks = 5
+#batch_size = 10
+#batch_wait_seconds = 1
 
 [logging]
 version = 1

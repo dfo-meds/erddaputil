@@ -1,0 +1,5 @@
+[clusterman]
+storage_dir = "/erddap_data"
+
+[flask]
+SQLALCHEMY_DATABASE_URI = "sqlite:////erddap_data/.main.db"

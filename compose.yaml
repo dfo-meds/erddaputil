@@ -3,7 +3,6 @@ services:
     build: .
     command: ["webserver"]
     volumes:
-      - "./test_config:/erddap-example"
       - ".erddaputil.example.toml:/erddap_util/config/.erddaputil.toml"
     ports:
       - "8080:9172"
@@ -11,6 +10,10 @@ services:
     build: .
     volumes:
       - "./test_config:/erddap-example"
+      - "download_data:/cluster_data"
       - ".erddaputil.example.toml:/erddap_util/config/.erddaputil.toml"
+      - ".clusterman.example.toml:/erddap_util/config/.clusterman.toml"
     depends_on:
       - metrics
+volumes:
+  download_data:
