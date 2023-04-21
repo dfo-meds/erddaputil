@@ -2,14 +2,14 @@ import click
 import pathlib
 from autoinject import injector
 
-from erddap_util.util.datasets import ErddapDatasetManager
+from old.util.datasets import ErddapDatasetManager
 
 ROOT_DIR = pathlib.Path(__file__).absolute().parent
 
 
 @click.group
 def cli():
-    from erddap_util.util.common import init_util
+    from old.util.common import init_util
     init_util([".erddaputil.cli.yaml", ".erddaputil.cli.toml"])
 
 
@@ -48,7 +48,7 @@ def deactivate_dataset(dataset_id: str):
 
 @cli.command
 def clean_logs():
-    from erddap_util.daemons import ErddapLogManager, ErddapManagementDaemon
+    from old.daemons import ErddapLogManager, ErddapManagementDaemon
     ErddapManagementDaemon.run_once(ErddapLogManager)
 
 
@@ -58,9 +58,9 @@ def clean_logs():
 def daemon(logman: bool, logtail: bool):
     daemons = {}
     if logman:
-        daemons["logman"] = "erddap_util.daemons.logman.ErddapLogManager"
+        daemons["logman"] = "erddaputil.daemons.logman.ErddapLogManager"
     if logtail:
-        daemons["logtail"] = "erddap_util.daemons.logtail.ErddapLogTail"
-    from erddap_util.daemons import ErddapManagementDaemon
+        daemons["logtail"] = "erddaputil.daemons.logtail.ErddapLogTail"
+    from old.daemons import ErddapManagementDaemon
     daemon = ErddapManagementDaemon(daemons)
     daemon.run_forever()

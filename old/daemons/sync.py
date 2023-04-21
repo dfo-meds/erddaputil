@@ -1,7 +1,7 @@
 import json
 import time
 
-from erddap_util.daemons.metrics import ScriptMetrics
+from old.daemons.metrics import ScriptMetrics
 import queue
 from autoinject import injector
 import zirconium as zr
@@ -31,7 +31,7 @@ class ErddapSyncManager(threading.Thread):
         self._reload_datasets = set()
         self._datasets_xml_reload = False
         self._metadata_reload = False
-        from erddap_util.util.datasets import ErddapDatasetManager
+        from old.util.datasets import ErddapDatasetManager
         self.dsm = ErddapDatasetManager()
         self._max_queued_datasets = self.config.as_int(("erddaputil", "sync", "max_deferred_datasets"), default=1)
         self._dataset_reload_max_delay = self.config.as_int(("erddaputil", "sync", "max_dataset_reload_delay_seconds"), default=300)

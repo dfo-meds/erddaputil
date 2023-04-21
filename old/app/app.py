@@ -6,7 +6,7 @@ from autoinject import injector
 
 
 def create_app():
-    from erddap_util.util.common import init_util
+    from old.util.common import init_util
     init_util()
     app = flask.Flask(__name__)
     init_app(app)

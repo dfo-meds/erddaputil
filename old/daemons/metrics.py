@@ -5,7 +5,7 @@ import zirconium as zr
 import logging
 import aiohttp
 import asyncio
-from erddap_util.util.common import load_object
+from old.util.common import load_object
 
 
 class _Metric:

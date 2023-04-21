@@ -9,7 +9,7 @@ datasets_d = "/cluster_data/datasets.d"
 #disabled_daemons = ["logman"]
 
 #[erddaputil.daemon.auto_enable]
-#logman = "erddap_util.logman.ErddapLogManager"
+#logman = "erddaputil.logman.ErddapLogManager"
 
 [erddaputil.logman]
 #wait_time_seconds = 14400
@@ -38,7 +38,7 @@ datasets_d = "/cluster_data/datasets.d"
 #backup_retention_days = 30
 
 #[erddaputil.metrics]
-#sender = "erddap_util.daemons.metrics.LocalPrometheusSendThread"
+#sender = "erddaputil.daemons.metrics.LocalPrometheusSendThread"
 #security_secret = "12345ThatsTheSamePasswordAsMyLuggage!"
 
 #[erddaputil.localprom]

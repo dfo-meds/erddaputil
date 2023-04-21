@@ -6,9 +6,9 @@ import clusterman.cli.app
 import zirconium as zr
 from autoinject import injector
 from .metrics import ScriptMetrics
-from erddap_util.util.common import load_object
+from old.util.common import load_object
 from clusterman.main.controller import SyncController
-from erddap_util.daemons.sync import ErddapSyncManager
+from old.daemons.sync import ErddapSyncManager
 import functools
 import signal
 
@@ -60,7 +60,7 @@ class ErddapManagementDaemon:
         self.daemon_classes["sync_cli"] = ("clusterman.main.mainline.MainListener", [self._sync_app])
         self.daemon_classes["sync_refresh"] = ("clusterman.main.processing.RefreshController", [self._sync_app])
         self.daemon_classes["sync_processor"] = ("clusterman.main.processing.FileSyncController", [self._sync_app])
-        self.daemon_classes["sync_manager"] = ("erddap_util.daemons.sync.ErddapSyncManager", [self._sync_queue])
+        self.daemon_classes["sync_manager"] = ("erddaputil.daemons.sync.ErddapSyncManager", [self._sync_queue])
         sync_controller.add_result_queue(self._sync_queue)
 
     def _get_daemon_obj(self, obj_def):
