@@ -25,7 +25,7 @@ def init_app(app, config: zr.ApplicationConfig = None):
     from .cli import cli
     app.cli.commands.update(cli.commands)
 
-    from .metrics import bp
+    from erddaputil.webapp.metrics import bp
     app.register_blueprint(bp)
 
     return app

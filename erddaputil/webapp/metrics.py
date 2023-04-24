@@ -3,6 +3,7 @@ from prometheus_client import Counter
 from autoinject import injector
 import zirconium as zr
 from threading import RLock
+from .common import require_login
 
 bp = flask.Blueprint("metrics", __name__)
 
@@ -49,28 +50,16 @@ class WebCollectedMetrics:
         use_labels = True
         if type_name == "counter":
             metric = Counter(metric_name, description, [str(x) for x in labels.keys()])
-        # TODO: other metric types)
+        # TODO: other metric types
         if metric is None:
             raise ValueError(f"Invalid metric type: {type_name}")
         return PromMetricWrapper(metric, use_labels)
 
 
-@bp.route("/health", methods=["GET"])
-def health_check():
-    return "healthy", 200
-
-
 @bp.route("/push", methods=["POST"])
+@require_login
 @injector.inject
-def handle_metrics(config: zr.ApplicationConfig = None, wc_metrics: WebCollectedMetrics = None):
-    ah = flask.request.headers.get("Authorization", default=None)
-    if ah is None:
-        return {"status": 'error', 'errors': ['access denied']}, 403
-    if not ah[0:7].lower() == 'bearer ':
-        return {"status": 'error', 'errors': ['access denied']}, 403
-    token = ah[7].strip("\r\n\t ")
-    if token != config.get(("erddaputil", "metrics", "security_secret"), default=""):
-        return {"status": 'error', 'errors': ['access denied']}, 403
+def handle_metrics(wc_metrics: WebCollectedMetrics = None):
     errors = []
     result = "success"
     if "metrics" in flask.request.json:

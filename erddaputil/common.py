@@ -8,6 +8,7 @@ import zrlog
 
 ROOT = pathlib.Path(__file__).absolute().parent
 
+
 @zr.configure
 def _config(app: zr.ApplicationConfig):
     dirs = [

@@ -1,4 +1,4 @@
-from .main import CommandRegistry, CommandAndControl, CommandReceiver, CommandResponse, Command, CommandGroup
+from .commands import Command, CommandGroup, CommandResponse
 
 
 
