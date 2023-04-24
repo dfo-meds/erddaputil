@@ -14,9 +14,12 @@ class ErddapLogManager(BaseThread):
     def __init__(self):
         super().__init__("erddaputil.logman", 15)
         self.bpd = self.config.as_path(("erddaputil", "erddap", "big_parent_directory"))
+        self._log_ath = None
         if self.bpd is None or not self.bpd.exists():
             self._log.warning("ERDDAP base directory not properly set")
             self.bpd = None
+        else:
+            self._log_path = self.bpd / "logs"
         self.log_retention_days = self.config.as_int(("erddaputil", "logman", "retention_days"), default=31)
         self.log_file_prefixes = self.config.get(
             ("erddaputil", "logman", "file_prefixes"),
@@ -31,11 +34,14 @@ class ErddapLogManager(BaseThread):
             return None
         if self.bpd is None or not self.log_file_prefixes:
             return False
+        if self._log_path is None or not self._log_path.exists():
+            return False
         if self._last_run is not None and (time.monotonic() - self._last_run) < self.run_frequency:
             return None
+
         count = 0
         cutoff = datetime.datetime.now() - datetime.timedelta(days=self.log_retention_days)
-        for file in os.scandir(self.bpd / "logs"):
+        for file in os.scandir(self._log_path):
             if file.stat().m_time < cutoff and any(file.name.startswith(x) for x in self.log_file_prefixes):
                 file.unlink()
                 count += 1

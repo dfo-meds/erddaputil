@@ -57,10 +57,10 @@ def _compile_datasets(*args, edm: ErddapDatasetManager = None, **kwargs):
     return True
 
 
-@cg.route("block_email")
+@cg.route("set_active_flag")
 @injector.inject
 def _set_active_flag(*args, edm: ErddapDatasetManager = None, **kwargs):
-    edm.block_email(*args, **kwargs)
+    edm.set_active_flag(*args, **kwargs)
     return True
 
 

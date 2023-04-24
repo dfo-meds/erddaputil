@@ -33,7 +33,7 @@ class AuthChecker:
                     line = line.strip("\r\n\t ")
                     if not line:
                         continue
-                    if not "||" in line:
+                    if "||" not in line:
                         continue
                     username, hashname, salt, iterations, phash = line.split("||", maxsplit=4)
                     self.passwords[username] = (hashname, salt, int(iterations), phash)
@@ -45,6 +45,8 @@ class AuthChecker:
                 for un in self.passwords:
                     hn, salt, iters, phash = self.passwords[un]
                     h.write(f"{un}||{hn}||{salt}||{iters}||{phash}\n")
+        else:
+            raise ValueError("No password file set")
 
     def _recheck_password_file(self):
         if self.password_file and self.password_file.exists():
@@ -67,16 +69,18 @@ class AuthChecker:
         iterations = secrets.randbelow(self._iterations_jitter) + self._min_iterations
         hashname = self._default_algorithm
         salt = secrets.token_hex(self._salt_length)
-        phash = hashlib.pbkdf2_hmac(hashname, password, salt + self.peppers[0], iterations)
-        self.passwords[username] = (hashname, salt, iterations, phash)
+        full_salt = salt + self.peppers[0]
+        phash = hashlib.pbkdf2_hmac(hashname, password.encode("utf-8"), full_salt.encode("utf-8"), iterations)
+        self.passwords[username] = (hashname, salt, iterations, phash.hex())
         self._save_passwords()
 
     def _check_credentials(self, username, password):
         if username in self.passwords:
             hashname, salt, iterations, phash = self.passwords[username]
             for pepper in self.peppers:
-                check_phash = hashlib.pbkdf2_hmac(hashname, password, salt + pepper, iterations)
-                if secrets.compare_digest(check_phash, phash):
+                full_salt = salt + pepper
+                check_phash = hashlib.pbkdf2_hmac(hashname, password.encode("utf-8"), full_salt.encode("utf-8"), iterations)
+                if secrets.compare_digest(check_phash.hex(), phash):
                     return True
         time.sleep(0.1 + (secrets.randbelow(10) / 10))
         return False

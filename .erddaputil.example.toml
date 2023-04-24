@@ -5,6 +5,11 @@
 ## a local daemon (the default) and/or an AMPQ message queue. These messages are
 ## triggered by calling the CLI or the HTTP interface.
 
+# Make sure this value is hard to guess and secret but the same between all servers
+# It will be used to sign the messages passed to AMPQ and to the local
+# server daemons to prevent malicious messages from being sent.
+secret_key = ""
+
 ## Set this to false if you only want to use AMPQ to send messages.
 ## Make sure the values in [erddaputil.service] are set properly
 # use_local_daemon = true
@@ -94,6 +99,9 @@ backups = ""
 ## If set to false, a poorly formed XML document will cause the recompile process to abort.
 ## Otherwise, the file is simply omitted and a warning emitted.
 # skip_misconfigured_datasets = true
+
+## Number of days to keep the backups
+# backup_retention_days = 30
 
 [erddaputil.service]
 ## Socket bind address for the ERDDAP management daemon

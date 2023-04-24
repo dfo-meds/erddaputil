@@ -1,0 +1,11 @@
+[erddaputil.webapp]
+password_file = "C:/my/erddaputil_test/passwords.txt"
+
+[erddaputil.erddap]
+big_parent_directory = "C:/my/erddaputil_test/bpd"
+datasets_xml = "C:/my/erddaputil_test/content/datasets.xml"
+datasets_d = "C:/my/erddaputil_test/datasets.d"
+
+[erddaputil]
+secret_key = "foobar"
+backups = "C:/my/erddaputil_test/backups"

@@ -84,7 +84,7 @@ class CommandResponse:
 class CommandAndControl:
 
     config: zr.ApplicationConfig = None
-    local_sender: "erddaputil.main.manager.CommandSender" = None
+    local_sender: "erddaputil.main.main.CommandSender" = None
     ampq_sender: "erddaputil.ampq.ampq.AmpqManager" = None
 
     @injector.construct

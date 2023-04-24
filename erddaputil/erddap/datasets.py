@@ -30,7 +30,9 @@ class ErddapDatasetManager:
         super().__init__()
         self.log = logging.getLogger("erddaputil.datasets")
         self.bpd = self.config.as_path(("erddaputil", "erddap", "big_parent_directory"))
-        self.dataset_template_file = self.config.as_path(("erddaputil", "erddap", 'datasets_xml_template'), default=None)
+        self.datasets_template_file = self.config.as_path(("erddaputil", "erddap", 'datasets_xml_template'), default=None)
+        if self.datasets_template_file is None:
+            self.datasets_template_file = pathlib.Path(__file__).absolute().parent / "datasets.template.xml"
         self.datasets_directory = self.config.as_path(("erddaputil", "erddap", "datasets_d"), default=None)
         self.datasets_file = self.config.as_path(("erddaputil", "erddap", "datasets_xml"), default=None)
         self.backup_directory = self.config.as_path(("erddaputil", "backups"), default=None)
@@ -39,19 +41,20 @@ class ErddapDatasetManager:
         self._max_recompilation_delay = self.config.as_int(("erddaputil", "dataset_manager", "max_recompile_delay"), default=15)
         self._skip_errored_datasets = self.config.as_bool(("erddaputil", "dataset_manager", "skip_misconfigured_datasets"), default=True)
         self._email_block_list = self.config.as_path(("erddaputil", "erddap", "subscription_block_list"), default=None)
+        self._backup_retention_days = self.config.as_int(("erddaputil", "dataset_manager", "backup_retention_days"), default=30)
         self._ip_block_list = self.config.as_path(("erddaputil", "erddap", "ip_block_list"), default=None)
         self._unlimited_allow_list = self.config.as_path(("erddaputil", "erddap", "unlimited_allow_list"), default=None)
         self.hostname = self.config.as_str(("erddaputil", "ampq", "hostname"), default=None)
         if self.hostname is None:
             self.hostname = socket.gethostname()
         self.cluster_name = self.config.as_str(("erddaputil", "ampq", "cluster_name"), default="default")
-        if self.dataset_template_file:
+        if self.bpd:
             if self._email_block_list is None:
-                self._email_block_list = self.dataset_template_file.parent / ".email_block_list.txt"
+                self._email_block_list = self.bpd / ".email_block_list.txt"
             if self._ip_block_list is None:
-                self._ip_block_list = self.dataset_template_file.parent / ".ip_block_list.txt"
+                self._ip_block_list = self.bpd / ".ip_block_list.txt"
             if self._unlimited_allow_list is None:
-                self._unlimited_allow_list = self.dataset_template_file.parent / ".unlimited_allow_list.txt"
+                self._unlimited_allow_list = self.bpd / ".unlimited_allow_list.txt"
         self._datasets_to_reload = {}
         self._compilation_requested = None
 
@@ -122,7 +125,8 @@ class ErddapDatasetManager:
             "cluster": self.cluster_name,
             "host": self.hostname,
         }).increment()
-        for file in os.scandir(self.datasets_d):
+
+        for file in os.scandir(self.datasets_directory):
             if self._try_setting_active_flag(pathlib.Path(file.path), dataset_id, active_flag):
                 self._queue_dataset_reload(dataset_id, 0)
                 self.compile_datasets(False, False, flush)
@@ -324,7 +328,7 @@ class ErddapDatasetManager:
         in_template = {ds.attrib["datasetID"]: [ds, self.datasets_template] for ds in datasets_root.iter("dataset")}
         has_errors = False
 
-        for file in os.scandir(self.datasets_d):
+        for file in os.scandir(self.datasets_directory):
             try:
                 config_xml = ET.parse(file.path)
                 config_root = config_xml.getroot()
@@ -356,10 +360,10 @@ class ErddapDatasetManager:
                 original_dataset_hashes[ds.attrib["datasetID"]] = self._hash_xml_element(ds)
             if self.backup_directory and self.backup_directory.exists():
                 n = 1
-                backup_file = self._backup_directory / f"datasets.{datetime.datetime.now().strftime('%Y%m%d%H%M')}.{n}.xml"
+                backup_file = self.backup_directory / f"datasets.{datetime.datetime.now().strftime('%Y%m%d%H%M')}.{n}.xml"
                 while backup_file.exists():
                     n += 1
-                    backup_file = self._backup_directory / f"datasets.{datetime.datetime.now().strftime('%Y%m%d%H%M')}.{n}.xml"
+                    backup_file = self.backup_directory / f"datasets.{datetime.datetime.now().strftime('%Y%m%d%H%M')}.{n}.xml"
                 shutil.copy2(self.datasets_file, backup_file)
             else:
                 self.log.warning(f"Backups not configured, skipping backup process")
@@ -383,10 +387,11 @@ class ErddapDatasetManager:
 
         gate = (datetime.datetime.now() - datetime.timedelta(days=self._backup_retention_days)).timestamp()
         total_count = 0
-        for backup in os.scandir(self._backup_directory):
-            if backup.stat().st_mtime < gate:
-                pathlib.Path(backup.path).unlink()
-                total_count += 1
+        if self.backup_directory and self.backup_directory.exists():
+            for backup in os.scandir(self.backup_directory):
+                if backup.stat().st_mtime < gate:
+                    pathlib.Path(backup.path).unlink()
+                    total_count += 1
 
         self._flush_datasets(True)
         self.metrics.counter("erddaputil_dataset_recompilation", {
@@ -421,13 +426,14 @@ class ErddapDatasetManager:
         try:
             config_xml = ET.parse(file_path)
             config_root = config_xml.getroot()
+            print(config_root)
             if not dataset_id == config_root.attrib["datasetID"]:
                 return False
             config_root.attrib["active"] = "true" if active_flag else "false"
             config_xml.write(file_path)
             return True
         except Exception as ex:
-            self._raise_error("set_flag", str(ex), False)
+            self.log.exception(ex)
             return False
 
     def flush(self, force: bool = False):

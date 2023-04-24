@@ -104,11 +104,12 @@ class CommandReceiver(BaseThread):
                 response = CommandResponse(str(response))
         except Exception as ex:
             response = CommandResponse.from_exception(ex)
+            self._log.exception(ex)
         return response.serialize().encode("utf-8", errors="replace")
 
     def _cleanup(self):
         if self._server:
-            self._server.shutdown()
             self._server.close()
+            self._server = None
         self.reg.shutdown()
 
