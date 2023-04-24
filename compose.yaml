@@ -1,19 +1,32 @@
 services:
-  metrics:
+
+  # Metrics collector and management UI
+  webserver:
     build: .
     command: ["webserver"]
     volumes:
       - ".erddaputil.example.toml:/erddaputil/config/.erddaputil.toml"
     ports:
       - "8080:9172"
+  depends_on:
+    - erddaputil
+
+  # Daemon
   erddaputil:
     build: .
     volumes:
       - "./test_config:/erddap-example"
       - "download_data:/cluster_data"
       - ".erddaputil.example.toml:/erddaputil/config/.erddaputil.toml"
-      - ".clusterman.example.toml:/erddaputil/config/.clusterman.toml"
+
+  # AMPQ Listener
+  amqp_listener:
+    build: .
+    command: ["ampq"]
+    volumes:
+      - ".erddaputil.example.toml:/erddaputil/config/.erddaputil.toml"
     depends_on:
-      - metrics
+      - erddaputil
+
 volumes:
   download_data:

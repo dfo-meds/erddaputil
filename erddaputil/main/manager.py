@@ -7,6 +7,7 @@ from erddaputil.erddap.logs import ErddapLogManager
 from erddaputil.common import init_config
 from erddaputil.erddap.datasets import ErddapDatasetManager
 from erddaputil.main.metrics import ScriptMetrics
+from erddaputil.erddap.logtail import ErddapLogTail
 from autoinject import injector
 
 
@@ -18,6 +19,8 @@ class Application:
         self._defs = {
             "receiver": CommandReceiver,
             "logman": ErddapLogManager,
+            # TODO: Need to complete the log tail reader
+            # "logtail": ErddapLogTail
         }
         self._halt = threading.Event()
         self._break_count = 0

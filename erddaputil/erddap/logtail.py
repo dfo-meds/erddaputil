@@ -1,40 +1,35 @@
 import hashlib
-from .daemon import ErddapUtil
+from erddaputil.common import BaseThread
 from graceful_shutdown import ShutdownProtection
-import pathlib
-import typing as t
 import datetime
 
 
-class ErddapLogTail(ErddapUtil):
+class ErddapLogTail(BaseThread):
 
-    def __init__(self, raise_error: bool = False):
-        super().__init__("logtail", raise_error, 5)
-        self.erddap_directory = None
-        self._files_tailed = {}
-        self._logs_tailed = self.metrics.counter(f"{self.metric_prefix}_logs_tailed_bytes")
-        self._target_dir: t.Optional[pathlib.Path] = None
-        self._info_file = None
-        self._log_file_info = {}
+    def __init__(self):
+        super().__init__("erddaputil.logtail", 14)
+        self.bpd = self.config.as_path(("erddaputil", "erddap", "big_parent_directory"))
+        if self.bpd is None or not self.bpd.exists():
+            self._log.warning("ERDDAP base directory not properly set")
+            self.bpd = None
         self._chunk_size = self.config.as_int(("erddaputil", "logtail", "chunk_size"), default=1000)
         self._batch_size = self.config.as_int(("erddaputil", "logtail", "batch_size"), default=10000)
         self._default_min_size = self.config.as_int(("erddaputil", "logtail", "min_size_for_hash"), default=1000)
         self._default_take_size = self.config.as_int(("erddaputil", "logtail", "read_size_for_hash"), default=10000)
         self._buffer_size = self.config.as_int(("erddaputil", "logtail", "buffer_size"), default=20000)
-
-    def _init(self):
-        self.erddap_directory = self.config.as_path(("erddaputil", "big_parent_dir"))
-        if self.erddap_directory is None or not self.erddap_directory.exists():
-            self.erddap_directory = None
-            self.log_or_raise(f"ERDDAP's big parent directory not found: {self.erddap_directory}")
-        else:
-            log_path = self.erddap_directory / "logs"
-            self._files_tailed["erddap_log"] = (log_path / "log.txt", log_path / "log.txt.previous")
+        self._files_tailed = {}
+        if self.bpd:
+            self._files_tailed["erddap_main_log"] = (
+                self.bpd / "logs" / "log.txt",
+                self.bpd / "logs" / "log.txt.previous"
+            )
         self._target_dir = self.config.as_path(("erddaputil", "logtail", "output_dir"))
+        self._info_file = None
+        self._log_file_info = {}
         if self._target_dir and (not self._target_dir.exists()) and self._target_dir.parent.exists():
             self._target_dir.mkdir()
         if not self._target_dir or not self._target_dir.exists():
-            self.log_or_raise(f"Output directory {self._target_dir} not found")
+            self._log.warning("Target directory does not exist")
             self._target_dir = None
         else:
             self._info_file = self._target_dir / ".log_info"
@@ -52,11 +47,7 @@ class ErddapLogTail(ErddapUtil):
                 h.write(f"{key}|{'|'.join(self._log_file_info[key])}\n")
 
     def _run(self, *args, **kwargs):
-        if not self._target_dir:
-            self.log.warning("Output directory not configured")
-            return False
-        if not self._files_tailed:
-            self.log.warning("ERDDAP directory not configured properly")
+        if not self._info_file:
             return False
         for file_key in self._files_tailed:
             self._tail_logs(file_key, *self._files_tailed[file_key])
@@ -157,4 +148,3 @@ class ErddapLogTail(ErddapUtil):
             finally:
                 # We capture the state to disk here so we don't lose our place
                 self._save_log_file_info()
-                self._logs_tailed.increment(count_bytes)
