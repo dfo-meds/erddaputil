@@ -2,9 +2,13 @@ from erddaputil.main.commands import Command, CommandResponse
 from autoinject import injector
 import zirconium as zr
 import functools
+import logging
+import threading
+import signal
 
 
-class AmpqSender:
+@injector.injectable_global
+class AmpqManager:
 
     config: zr.ApplicationConfig = None
 
@@ -47,6 +51,33 @@ class AmpqSender:
             creg.route_command(cmd)
         except Exception as ex:
             pass
+
+
+class AmpqReceiver:
+
+    manager: AmpqManager = None
+
+    @injector.construct
+    def __init__(self):
+        self.log = logging.getLogger("erddaputil.ampq")
+        self._halt = threading.Event()
+        self._break_count = 0
+
+    def sig_handle(self, a, b):
+        self._halt.set()
+        self._break_count += 1
+        if self._break_count >= 3:
+            raise KeyboardInterrupt()
+
+    def run_forever(self):
+        if not self.manager.is_valid:
+            raise ValueError("Configuration is invalid")
+        signal.signal(signal.SIGINT, self.sig_handle)
+        if hasattr(signal, "SIGTERM"):
+            signal.signal(signal.SIGTERM, self.sig_handle)
+        if hasattr(signal, "SIGBREAK"):
+            signal.signal(signal.SIGBREAK, self.sig_handle)
+        self.manager.run_forever(self._halt)
 
 
 class _PikaHandler:

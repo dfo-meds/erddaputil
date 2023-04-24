@@ -11,6 +11,10 @@ elif [ "$1" = 'daemon' ]; then
   shift
   python -m erddaputil "$@"
 
+elif [ "$1" = 'ampq' ]; then
+  shift
+  python -m erddaputil.ampq "$@"
+
 else
   python -m erddaputil.cli "$@"
 
