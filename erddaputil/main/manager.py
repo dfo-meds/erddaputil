@@ -3,6 +3,7 @@ import threading
 from .main import CommandReceiver
 import logging
 import signal
+from erddaputil.erddap.logs import ErddapLogManager
 from erddaputil.common import init_config
 from erddaputil.erddap.datasets import ErddapDatasetManager
 from autoinject import injector
@@ -14,7 +15,8 @@ class Application:
         init_config()
         self._live = {}
         self._defs = {
-            "receiver": CommandReceiver
+            "receiver": CommandReceiver,
+            "logman": ErddapLogManager,
         }
         self._halt = threading.Event()
         self._break_count = 0

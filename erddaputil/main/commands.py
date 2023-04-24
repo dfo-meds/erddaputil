@@ -31,20 +31,28 @@ class Command:
         self.args = args or []
         self.kwargs = kwargs or {}
         self.allow_broadcast = _broadcast
+        self.ignore_on_hosts = []
+
+    def ignore_host(self, hostname):
+        self.ignore_on_hosts.append(str(hostname))
 
     @injector.inject
     def serialize(self, _serializer: Serializer = None) -> str:
         return _serializer.serialize({
             "name": self.name,
             "args": self.args,
-            "kwargs": self.kwargs
+            "kwargs": self.kwargs,
+            "ignore": self.ignore_on_hosts
         })
 
     @staticmethod
     @injector.inject
     def unserialize(message: str, _serializer: Serializer = None):
         message = _serializer.unserialize(message)
-        return Command(message['name'], *message['args'], **message['kwargs'])
+        cmd = Command(message['name'], *message['args'], **message['kwargs'])
+        if "ignore" in message and message["ignore"]:
+            cmd.ignore_on_hosts.extend(message["ignore"])
+        return cmd
 
 
 class CommandResponse:

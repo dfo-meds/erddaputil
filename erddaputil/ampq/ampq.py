@@ -5,6 +5,7 @@ import functools
 import logging
 import threading
 import signal
+import socket
 
 
 @injector.injectable_global
@@ -15,8 +16,6 @@ class AmpqManager:
     @injector.construct
     def __init__(self):
         self.handler = None
-        self.cluster_name = self.config.as_str(("erddaputil", "ampq", "cluster_name"), default="default")
-        self.topic_name = f"erddap.cluster.{self.cluster_name}"
         mode = self.config.as_str(("erddaputil", "ampq", "implementation"), default="pika")
         try:
             if mode == "pika":
@@ -34,7 +33,8 @@ class AmpqManager:
         if not self.is_valid:
             return CommandResponse("No AMQP service configured", "error")
         try:
-            self.handler.send_message(self.topic_name, cmd.serialize())
+            cmd.ignore_host(self.handler.hostname)
+            self.handler.send_message(cmd.serialize())
             return CommandResponse("AMPQ request queued", "success")
         except Exception as ex:
             return CommandResponse(f"{type(ex)}: {str(ex)}", "error")
@@ -48,7 +48,8 @@ class AmpqManager:
     def handle_message(self, message, creg: "erddaputil.main.commands.CommandRegistry"):
         try:
             cmd = Command.unserialize(message)
-            creg.route_command(cmd)
+            if self.handler.hostname not in cmd.ignore_on_hosts:
+                creg.route_command(cmd)
         except Exception as ex:
             pass
 
@@ -87,9 +88,13 @@ class _PikaHandler:
         self.exchange_name = config.as_str(("erddaputil", "ampq", "exchange_name"), default="erddap_cnc")
         self.queue_name = f"erddap_{self.cluster_name}_{self.hostname}"
         self.hostname = config.as_str(("erddaputil", "ampq", "hostname"), default=None)
+        if self.hostname is None:
+            self.hostname = socket.gethostname()
         self.cluster_name = config.as_str(("erddaputil", "ampq", "cluster_name"), default="default")
+        self.attempt_queue_creation = config.as_bool(("erddaputil", "ampq", "create_queue"), default=True)
+        self.topic_name = f"erddap.cluster.{self.cluster_name}"
 
-    def send_message(self, topic, message):
+    def send_message(self, message):
         import pika
         from pika.exceptions import UnroutableError
         conn = pika.BlockingConnection(parameters=pika.URLParameters(self.credentials))
@@ -98,7 +103,7 @@ class _PikaHandler:
         try:
             channel.basic_publish(
                 exchange=self.exchange_name,
-                routing_key=topic,
+                routing_key=self.topic_name,
                 body=message,
                 properties=pika.BasicProperties(
                     content_type="text/plain",
@@ -116,7 +121,8 @@ class _PikaHandler:
         import pika
         conn = pika.BlockingConnection(parameters=pika.URLParameters(self.credentials))
         channel = conn.channel()
-        channel.queue_declare(self.queue_name, durable=True)
+        if self.attempt_queue_creation:
+            channel.queue_declare(self.queue_name, durable=True)
         for mf, hf, body in channel.consume(self.queue_name, auto_ack=False, inactivity_timeout=1):
             if body is not None:
                 message_content_handler(body)
@@ -132,16 +138,20 @@ class _AzureServiceBusHandler:
         self.connect_str = config.as_str(("erddaputil", "ampq", "connection"), default=None)
         self.exchange_name = config.as_str(("erddaputil", "ampq", "exchange_name"), default="erddap_cnc")
         self.hostname = config.as_str(("erddaputil", "ampq", "hostname"), default=None)
+        if self.hostname is None:
+            self.hostname = socket.gethostname()
         self.cluster_name = config.as_str(("erddaputil", "ampq", "cluster_name"), default="default")
+        self.attempt_queue_creation = config.as_bool(("erddaputil", "ampq", "create_queue"), default=True)
         self.sub_name = f"erddap_{self.cluster_name}_{self.hostname}"
+        self.topic_name = f"erddap.cluster.{self.cluster_name}"
 
-    def send_message(self, topic, message):
+    def send_message(self, message):
         import azure.servicebus as sb
         client = sb.ServiceBusClient.from_connection_string(self.connect_str)
         with client:
             sender = client.get_topic_sender(self.exchange_name)
             with sender:
-                message = sb.ServiceBusMessage(message, subject=topic)
+                message = sb.ServiceBusMessage(message, subject=self.topic_name)
                 sender.send_messages(message)
 
     def is_valid(self):
@@ -149,6 +159,8 @@ class _AzureServiceBusHandler:
 
     def receive_forever(self, message_content_handler, halt_event):
         import azure.servicebus as sb
+        if self.attempt_queue_creation:
+            self._create_subscription()
         with sb.ServiceBusClient.from_connection_string(self.connect_str) as client:
             with client.get_subscription_receiver(self.exchange_name, self.sub_name) as receiver:
                 while not halt_event.is_set():

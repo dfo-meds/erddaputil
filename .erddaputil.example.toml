@@ -1,56 +1,128 @@
-[erddaputil]
-big_parent_dir = "/erddap-example/bpd"
-datasets_file = "/erddap-example/content/datasets.xml"
-datasets_template = "/erddap-example/datasets.template.xml"
-datasets_d = "/cluster_data/datasets.d"
+[erddaputil.erddap]
+## Enter the path to your ERDDAP bigParentDirectory. If left blank, dataset reloads cannot be done.
+big_parent_directory = ""
 
-[erddaputil.daemon]
-#recheck_interval_seconds = 120
-#disabled_daemons = ["logman"]
+## Enter the path to a template file to use for your datasets.xml (or leave blank to use the default template)
+datasets_xml_template = ""
 
-#[erddaputil.daemon.auto_enable]
-#logman = "erddaputil.logman.ErddapLogManager"
+## Enter the path to your datasets.d folder with dataset XML files within it. If left blank, certain
+## operations are not available.
+datasets_d = ""
+
+## Enter the path to your datasets.xml file. If left blank, certain operations are not available.
+datasets_xml = ""
+
+## Enter the path to store backups of the datasets.xml file or leave blank to not have backups
+backups = ""
+
+## Uncomment these if you want to change the default locations
+# subscription_block_list = ""          # Defaults to .email_block_list.txt in XML template directory
+# ip_block_list = ""                    # Defaults to .ip_block_list.txt in XML template directory
+# unlimited_allow_list = ""             # Defaults to .unlimited_allow_list.txt in XML directory
+
+
+[erddaputil.dataset_manager]
+## Maximum number of datasets that can be pending reload at once
+# max_pending = 2
+
+## Maxumum delay in seconds that a dataset will wait for additional reloads to be sent.
+# max_delay_seconds = 10
+
+## Maximum delay in seconds that a request to recompile will wait
+# max_recompile_delay = 15
+
+## If set to false, a poorly formed XML document will cause the recompile process to abort.
+## Otherwise, the file is simply omitted and a warning emitted.
+# skip_misconfigured_datasets = true
+
+[erddaputil.service]
+## Socket bind address for the ERDDAP management daemon
+# host = "127.0.0.1"
+
+## Socket bind port for the ERDDAP management daemon
+# port = 7012
+
+## Socket backlog of connections before new connections are rejected
+# backlog = 20
+
+## Time to wait for a new connection (note that a tidy up can be done at most this often)
+# listen_block_seconds = 0.25
 
 [erddaputil.logman]
-#wait_time_seconds = 14400
-#retention_days = 31
-#log_file_prefixes = ["logArchivedAt", "logPreviousArchivedAt", "emailLog"]
+## Set to false to disable the logman tool
+# enabled = true
 
-#[erddaputil.logtail]
-#wait_time_seconds = 5
-#output_dir = ""
-#chunk_size = 1000
-#batch_size = 10000
-#min_size_for_hash = 1000
-#read_size_for_hash = 10000
-#buffer_size = 20000
-#max_retries = 30
-#retry_delay_seconds = 15
+## Time in days to preserve log files
+# retention_days = 31
 
-#[erddaputil.sync]
-#max_deferred_datasets = 1
-#max_dataset_reload_delay_seconds = 300
-#max_config_reload_delay_seconds = 300
+## Time in seconds to wait between re-scanning the log directory
+# sleep_time_seconds = 3600
 
-#[erddaputil.datasets]
-#compile_with_errors = false
-#backup_directory = "/usr/local/tomcat/content/erddap/backups"
-#backup_retention_days = 30
+## List of file prefixes to remove
+# file_prefixes = ["logPreviousArchivedAt", "logArchivedAt", "emailLog"]
 
-#[erddaputil.metrics]
-#sender = "erddaputil.daemons.metrics.LocalPrometheusSendThread"
-#security_secret = "12345ThatsTheSamePasswordAsMyLuggage!"
+[erddaputil.ampq]
+## If you are running multiple clusters, specify the cluster name here.
+## The ERDDAP management daemon will only broadcast commands to its own cluster
+# cluster_name = "default"
 
-#[erddaputil.localprom]
-# For LocalPrometheusSendThread
-#host = "localhost"
-#port = 9712
-#metrics_path = "http://localhost:5000/push"
-#delay_seconds = 0.25
-#max_tasks = 5
-#batch_size = 10
-#batch_wait_seconds = 1
+## Specify a host name for the current machine, which should be unique to this environment
+## and persist through reboots.
+## Leave it blank to use the machine's calculated hostname (i.e. socket.gethostname()).
+## The default is probably a bad choice if either the CLI interface or HTTP server is
+## not running in the same container as the AMQP receiver.
+# hostname = ""
 
+## Specify the Pika URLParameters or Azure Service Bus connection string
+connection = ""
+
+## Specify the RabbitMQ Exchange Name or the Azure Service Bus Topic Name
+## Note that this system does NOT attempt to create the exchange or topic
+# exchange_name = "erddap_cnc"
+
+## Specify if the system should attempt to create the queue (for RabbitMQ) or the
+## subscription (for Azure Service Bus).
+# create_queue = true
+
+## Choose "pika" or "azure_service_bus" to control which client to use
+implementation = "pika"
+
+
+
+[erddaputil.webapp]
+## Enable the metrics collector. In essence, this is like a local version of a pushgateway
+# enable_metrics_collector = true
+
+## Enable the management API.
+# enable_management_api = true
+
+## Specify a file where passwords can be stored. Mandatory if etiher the metrics collector
+## or the management API is to be used, otherwise it can be blank.
+password_file = ""
+
+## Specify a list of peppers. Peppers should only be removed once all passwords have been
+## changed that used it. Peppers are specified in order from most recent to least recentr.
+peppers = [""]
+
+## Specify the hash algorithm used.
+# password_hash = "sha256"
+
+## Specify the length of the salt used for new passwords.
+# salt_length = 16
+
+## Specify the minimum number of iterations for PBKDF2
+# min_iterations = 700000
+
+## If greater than 0, the number of iterations will vary by username by up to
+## this amount
+# iterations_jitter = 100000
+
+
+## Flask-specific configuration for the webapp.
+[flask]
+
+
+## Logging settings below
 [logging]
 version = 1
 
