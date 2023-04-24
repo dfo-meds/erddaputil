@@ -5,11 +5,9 @@ import threading
 import clusterman.cli.app
 import zirconium as zr
 from autoinject import injector
-from .metrics import ScriptMetrics
+from erddaputil.main.metrics import ScriptMetrics
 from old.util.common import load_object
 from clusterman.main.controller import SyncController
-from old.daemons.sync import ErddapSyncManager
-import functools
 import signal
 
 

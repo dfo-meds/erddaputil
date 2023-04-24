@@ -22,10 +22,3 @@ def init_util(extra_files=None, override_dir=None):
                               [".clusterman.defaults.toml", ".erddaputil.defaults.toml"])
     zrlog.init_logging()
 
-
-def load_object(obj_name: str):
-    package_dot_pos = obj_name.rfind(".")
-    package = obj_name[0:package_dot_pos]
-    specific_cls_name = obj_name[package_dot_pos + 1:]
-    mod = importlib.import_module(package)
-    return getattr(mod, specific_cls_name)

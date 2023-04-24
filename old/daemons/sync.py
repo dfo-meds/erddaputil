@@ -1,7 +1,7 @@
 import json
 import time
 
-from old.daemons.metrics import ScriptMetrics
+from erddaputil.main.metrics import ScriptMetrics
 import queue
 from autoinject import injector
 import zirconium as zr

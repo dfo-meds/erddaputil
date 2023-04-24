@@ -2,10 +2,15 @@ import datetime
 import os
 import time
 from erddaputil.common import BaseThread
+from erddaputil.main.metrics import ScriptMetrics
+from autoinject import injector
 
 
 class ErddapLogManager(BaseThread):
 
+    metrics: ScriptMetrics = None
+
+    @injector.construct
     def __init__(self):
         super().__init__("erddaputil.logman", 15)
         self.bpd = self.config.as_path(("erddaputil", "erddap", "big_parent_directory"))
@@ -28,8 +33,11 @@ class ErddapLogManager(BaseThread):
             return False
         if self._last_run is not None and (time.monotonic() - self._last_run) < self.run_frequency:
             return None
+        count = 0
         cutoff = datetime.datetime.now() - datetime.timedelta(days=self.log_retention_days)
         for file in os.scandir(self.bpd / "logs"):
             if file.stat().m_time < cutoff and any(file.name.startswith(x) for x in self.log_file_prefixes):
                 file.unlink()
+                count += 1
+        self.metrics.counter("erddaputil_logs_cleared").increment(count)
         return True

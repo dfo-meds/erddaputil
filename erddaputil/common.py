@@ -5,6 +5,7 @@ import logging
 import pathlib
 import os
 import zrlog
+import importlib
 
 ROOT = pathlib.Path(__file__).absolute().parent
 
@@ -24,6 +25,14 @@ def _config(app: zr.ApplicationConfig):
 
 def init_config():
     zrlog.init_logging()
+
+
+def load_object(obj_name: str):
+    package_dot_pos = obj_name.rfind(".")
+    package = obj_name[0:package_dot_pos]
+    specific_cls_name = obj_name[package_dot_pos + 1:]
+    mod = importlib.import_module(package)
+    return getattr(mod, specific_cls_name)
 
 
 class BaseThread(threading.Thread):

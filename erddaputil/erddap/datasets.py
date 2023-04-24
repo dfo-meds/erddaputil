@@ -4,13 +4,14 @@ import zirconium as zr
 import logging
 import time
 import xml.etree.ElementTree as ET
-import xml.etree as etree
+from erddaputil.main.metrics import ScriptMetrics
 import os
 import datetime
 import shutil
 import hashlib
 import pathlib
 import ipaddress
+import socket
 
 
 @injector.injectable_global
@@ -18,6 +19,7 @@ class ErddapDatasetManager:
     """Manages datasets on behalf of ERDDAP"""
 
     config: zr.ApplicationConfig = None
+    metrics: ScriptMetrics = None
 
     HARD_FLAG = 2
     BAD_FLAG = 1
@@ -39,6 +41,10 @@ class ErddapDatasetManager:
         self._email_block_list = self.config.as_path(("erddaputil", "erddap", "subscription_block_list"), default=None)
         self._ip_block_list = self.config.as_path(("erddaputil", "erddap", "ip_block_list"), default=None)
         self._unlimited_allow_list = self.config.as_path(("erddaputil", "erddap", "unlimited_allow_list"), default=None)
+        self.hostname = self.config.as_str(("erddaputil", "ampq", "hostname"), default=None)
+        if self.hostname is None:
+            self.hostname = socket.gethostname()
+        self.cluster_name = self.config.as_str(("erddaputil", "ampq", "cluster_name"), default="default")
         if self.dataset_template_file:
             if self._email_block_list is None:
                 self._email_block_list = self.dataset_template_file.parent / ".email_block_list.txt"
@@ -74,6 +80,12 @@ class ErddapDatasetManager:
         self._flush_datasets(flush)
 
     def _queue_dataset_reload(self, dataset_id: str, flag: int):
+        self.metrics.counter("erddaputil_dataset_reloads", {
+            "stage": "queued",
+            "flag": str(flag),
+            "cluster": self.cluster_name,
+            "host": self.hostname,
+        }).increment()
         if dataset_id not in self._datasets_to_reload:
             self._datasets_to_reload[dataset_id] = [flag, time.monotonic()]
         else:
@@ -94,11 +106,22 @@ class ErddapDatasetManager:
             flag_file.parent.mkdir()
         with open(flag_file, "w") as h:
             h.write("1")
+        self.metrics.counter("erddaputil_dataset_reloads", {
+            "stage": "complete",
+            "flag": str(flag),
+            "cluster": self.cluster_name,
+            "host": self.hostname,
+        }).increment()
 
     def set_active_flag(self, dataset_id: str, active_flag: bool, flush: bool = False):
         if not self.can_recompile():
             raise ValueError("Configuration not sufficient to recompile")
         self.log.info(f"Setting active flag on {dataset_id} to {active_flag}")
+        self.metrics.counter("erddaputil_dataset_activations", {
+            "mode": str(active_flag),
+            "cluster": self.cluster_name,
+            "host": self.hostname,
+        }).increment()
         for file in os.scandir(self.datasets_d):
             if self._try_setting_active_flag(pathlib.Path(file.path), dataset_id, active_flag):
                 self._queue_dataset_reload(dataset_id, 0)
@@ -120,6 +143,10 @@ class ErddapDatasetManager:
             raise ValueError("Invalid email address")
         if "," in email_address:
             raise ValueError("ERDDAP does not allow commas in email addresses")
+        self.metrics.counter("erddaputil_emails_blocked", {
+            "cluster": self.cluster_name,
+            "host": self.hostname,
+        }).increment()
         self._append_entry_to_file(self._email_block_list, email_address)
         self.compile_datasets(False, False, flush)
 
@@ -152,6 +179,10 @@ class ErddapDatasetManager:
         if not self.can_recompile():
             raise ValueError("Configuration not sufficient to recompile")
         self._validate_ip_address(ip_address)
+        self.metrics.counter("erddaputil_ips_blocked", {
+            "cluster": self.cluster_name,
+            "host": self.hostname,
+        }).increment()
         self._append_entry_to_file(self._ip_block_list, ip_address)
         self.compile_datasets(False, False, flush)
 
@@ -161,6 +192,10 @@ class ErddapDatasetManager:
         if not self.can_recompile():
             raise ValueError("Configuration not sufficient to recompile")
         self._validate_ip_address(ip_address)
+        self.metrics.counter("erddaputil_emails_blocked", {
+            "cluster": self.cluster_name,
+            "host": self.hostname,
+        }).increment()
         self._append_entry_to_file(self._unlimited_allow_list, ip_address)
         self.compile_datasets(False, False, flush)
 
@@ -193,6 +228,11 @@ class ErddapDatasetManager:
         self._flush_recompilation(immediate)
 
     def _queue_recompilation(self, skip_errored_datasets: bool, reload_all_datasets: bool):
+        self.metrics.counter("erddaputil_dataset_recompilation", {
+            "stage": "queued",
+            "cluster": self.cluster_name,
+            "host": self.hostname,
+        }).increment()
         if skip_errored_datasets is None:
             skip_errored_datasets = self._skip_errored_datasets
         if self._compilation_requested is None:
@@ -299,6 +339,11 @@ class ErddapDatasetManager:
                 has_errors = True
 
         if has_errors and not skip_errored_datasets:
+            self.metrics.counter("erddaputil_dataset_recompilation", {
+                "stage": "failed",
+                "cluster": self.cluster_name,
+                "host": self.hostname,
+            }).increment()
             raise ValueError("Errors detected during compilation, aborting")
 
         self._compile_block_allow_lists(datasets_root)
@@ -344,6 +389,11 @@ class ErddapDatasetManager:
                 total_count += 1
 
         self._flush_datasets(True)
+        self.metrics.counter("erddaputil_dataset_recompilation", {
+            "stage": "completed",
+            "cluster": self.cluster_name,
+            "host": self.hostname,
+        }).increment()
 
     def _hash_xml_element(self, element) -> str:
         info = []

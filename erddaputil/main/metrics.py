@@ -2,10 +2,10 @@ from autoinject import injector
 import threading
 import queue
 import zirconium as zr
-import logging
+import base64
 import aiohttp
 import asyncio
-from old.util.common import load_object
+from erddaputil.common import load_object, BaseThread
 
 
 class _Metric:
@@ -102,33 +102,31 @@ class _ScriptEnumMetric(_ScriptMetric):
         pass
 
 
-class LocalPrometheusSendThread(threading.Thread):
+class LocalPrometheusSendThread(BaseThread):
 
     config: zr.ApplicationConfig = None
 
     @injector.construct
     def __init__(self):
-        super().__init__()
+        super().__init__("erddaputil.localprom")
         self.messages = queue.SimpleQueue()
         self._halt = threading.Event()
         self._wait_time = self.config.as_float(("erddaputil", "localprom", "delay_seconds"), default=0.25)
         host = self.config.as_str(("erddaputil", "localprom", "host"), default="localhost")
         port = self.config.as_int(("erddaputil", "localprom", "port"), default=5000)
         self._endpoint = self.config.as_str(("erddaputil", "localprom", "metrics_path"), default=f"http://{host}:{port}/push")
-        self._log = logging.getLogger("erddaputil.localprom")
-        self._send_headers = {
-            'Authorization': f'bearer {self.config.get("erddaputil", "metrics", "security_secret")}'
+        username = self.config.as_str(("erddaputil", "localprom", "username"))
+        password = self.config.as_str(("erddaputil", "localprom", "password"))
+        unpw = f"{username}:{password}"
+        self._headers = {
+            "Authorization": f"basic {base64.b64encode(unpw)}"
         }
         self._max_concurrent_tasks = self.config.as_int(("erddaputil", "localprom", "max_tasks"), default=5)
         self._max_messages_to_send = self.config.as_int(("erddaputil", "localprom", "batch_size"), default=10)
         self._message_wait_time = self.config.as_float(("erddaputil", "localprom", "batch_wait_seconds"), default=1)
-        self._max_retries = self.config.as_int(("erddaputil", "localprom", "max_retries"), default=30)
+        self._max_retries = self.config.as_int(("erddaputil", "localprom", "max_retries"), default=5)
         self._retry_delay = self.config.as_float(("erddaputil", "localprom", "retry_delay_seconds"), default=15)
         self._active_tasks = []
-        self.daemon = True
-
-    def halt(self):
-        self._halt.set()
 
     def send_message(self, metric: _Metric):
         if self._halt.is_set():
@@ -142,16 +140,20 @@ class LocalPrometheusSendThread(threading.Thread):
 
     async def _handle_metrics(self, metrics: list, session):
         json_data = {"metrics": [metric.to_dict() for metric in metrics]}
+        if self._halt.is_set():
+            self._max_retries = 1
         retries = self._max_retries
         retry_forever = self._max_retries == 0
         while retry_forever or retries > 0:
-            async with session.post(self._endpoint, json=json_data, headers=self._send_headers) as resp:
+            async with session.post(self._endpoint, json=json_data, headers=self._headers) as resp:
                 info = await resp.json()
                 if not info["status"] == "success":
                     for error in info["errors"]:
                         self._log.error(error)
                     if retries > 0:
                         retries -= 1
+                    if self._halt.is_set():
+                        break
                 else:
                     return
             await asyncio.sleep(self._retry_delay)
@@ -205,8 +207,8 @@ class ScriptMetrics:
         self._cache = {}
         self._lock = threading.RLock()
         self._sender = None
-        if self.config.is_truthy(("erddaputil", "metrics", "sender")):
-            self._sender = load_object(self.config.get(("erddaputil", "metrics", "sender")))()
+        if self.config.is_truthy(("erddaputil", "metrics_manager")):
+            self._sender = load_object(self.config.get(("erddaputil", "metrics_manager")))()
             self._sender.start()
 
     def __cleanup__(self):
@@ -214,7 +216,7 @@ class ScriptMetrics:
 
     def halt(self):
         if self._sender:
-            self._sender.halt()
+            self._sender.terminate()
             self._sender.join()
 
     def send_message(self, metric: _Metric):

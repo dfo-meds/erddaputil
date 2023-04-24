@@ -108,6 +108,7 @@ class CommandReceiver(BaseThread):
 
     def _cleanup(self):
         if self._server:
+            self._server.shutdown()
             self._server.close()
         self.reg.shutdown()
 

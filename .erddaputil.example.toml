@@ -1,3 +1,63 @@
+
+
+[erddaputil]
+## ERDDAPUtil can send messages to modify the ERDDAP configuration either via
+## a local daemon (the default) and/or an AMPQ message queue. These messages are
+## triggered by calling the CLI or the HTTP interface.
+
+## Set this to false if you only want to use AMPQ to send messages.
+## Make sure the values in [erddaputil.service] are set properly
+# use_local_daemon = true
+
+## Set this to true if you are going to use AMPQ to send messages
+## Make sure the values in [erddaputil.ampq] are set properly.
+# use_ampq_exchange = false
+
+## Set this to a class that subclasses BaseThread (supports terminate() at least)
+## and can support the send_message(metric) method from ScriptMetrics. The default
+## is to not send metrics.
+metrics_manager = "erddaputil.main.metrics.LocalPrometheusSendThread"
+
+
+[erddaputil.localprom]
+## Use these settings to specify how to connect to our custom
+## pushgateway-esque tool.
+
+## Host where our custom pushgateway lives
+host = "localhost"
+
+## Port we can connect to the pushgateway on
+port = 5000
+
+## Alternatively, specify the path to the endpoint here
+## (defaults to http://HOST:PORT/push)
+# metrics_path = ""
+
+## Username for Basic auth
+username = ""
+
+## Password for Basic auth
+password = ""
+
+## Maximum number of simultaneous push tasks
+# max_tasks = 5
+
+## Maximum number of metric changes to push in one batch
+# batch_size = 10
+
+## Maximum number of seconds to wait for more metric changes
+# batch_wait_seconds = 1
+
+## Maximum number of times to retry pushing the metrics
+# max_retries = 5
+
+## Delay in between retries
+# retry_delay_seconds = 15
+
+## Delay in checking for new messages (sleep time)
+# delay_seconds = 0.25
+
+
 [erddaputil.erddap]
 ## Enter the path to your ERDDAP bigParentDirectory. If left blank, dataset reloads cannot be done.
 big_parent_directory = ""
@@ -37,6 +97,7 @@ backups = ""
 
 [erddaputil.service]
 ## Socket bind address for the ERDDAP management daemon
+## You might need to override this if you use a containerized approach.
 # host = "127.0.0.1"
 
 ## Socket bind port for the ERDDAP management daemon
@@ -69,8 +130,9 @@ backups = ""
 ## Specify a host name for the current machine, which should be unique to this environment
 ## and persist through reboots.
 ## Leave it blank to use the machine's calculated hostname (i.e. socket.gethostname()).
-## The default is probably a bad choice if either the CLI interface or HTTP server is
-## not running in the same container as the AMQP receiver.
+## If you intend to use the CLI or HTTP interface on the server to trigger the AMPQ
+## messages (i.e. with use_ampq_exchange = true on your servers), and you use containers
+## to run the webapp/cli separately from the AMPQ daemon, make sure you set this explicitly.
 # hostname = ""
 
 ## Specify the Pika URLParameters or Azure Service Bus connection string

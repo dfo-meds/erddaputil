@@ -6,6 +6,7 @@ import signal
 from erddaputil.erddap.logs import ErddapLogManager
 from erddaputil.common import init_config
 from erddaputil.erddap.datasets import ErddapDatasetManager
+from erddaputil.main.metrics import ScriptMetrics
 from autoinject import injector
 
 
@@ -65,9 +66,12 @@ class Application:
                 self._live[key] = self._defs[key]()
                 self._live[key].start()
 
-    def _cleanup(self):
+    @injector.inject
+    def _cleanup(self, metrics: ScriptMetrics = None):
         self.log.info("Cleaning up")
         for key in self._live:
             self._live[key].terminate()
         for key in self._live:
             self._live[key].join()
+        # Last, we will halt metrics to make sure everything got sent.
+        metrics.halt()

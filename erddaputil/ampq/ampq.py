@@ -7,6 +7,8 @@ import threading
 import signal
 import socket
 
+from erddaputil.main.metrics import ScriptMetrics
+
 
 @injector.injectable_global
 class AmpqManager:
@@ -57,6 +59,7 @@ class AmpqManager:
 class AmpqReceiver:
 
     manager: AmpqManager = None
+    metrics: ScriptMetrics = None
 
     @injector.construct
     def __init__(self):
@@ -79,6 +82,7 @@ class AmpqReceiver:
         if hasattr(signal, "SIGBREAK"):
             signal.signal(signal.SIGBREAK, self.sig_handle)
         self.manager.run_forever(self._halt)
+        self.metrics.halt()
 
 
 class _PikaHandler:
