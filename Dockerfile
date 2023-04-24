@@ -6,7 +6,7 @@ VOLUME /erddap_data
 
 WORKDIR /erddap_util
 
-ENV ERDDAPUTIL_CONFIG_PATHS=/erddap_util/config;/erddap_util/docker_config
+ENV ERDDAPUTIL_CONFIG_PATHS=/erddap_util/docker_config;/erddap_util/config
 
 RUN pip install --upgrade pip
 
@@ -23,7 +23,7 @@ COPY docker/config docker_config
 
 EXPOSE 9172
 
-COPY erddap_util erddap_util
+COPY erddaputil erddaputil
 
 ENTRYPOINT ["./start.sh"]
 CMD ["daemon"]

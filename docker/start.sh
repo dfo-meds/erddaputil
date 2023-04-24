@@ -5,7 +5,13 @@ cd /erddap_util
 if [ "$1" = 'webserver' ]; then
   shift
   # TODO: convert to gunicorn?
-  python -m flask --app erddap_util.app.app run -h "0.0.0.0" -p 9172 "$@"
+  python -m flask --app erddaputil.webapp.app run -h "0.0.0.0" -p 9172 "$@"
+
+elif [ "$1" = 'daemon' ]; then
+  shift
+  python -m erddaputil "$@"
+
 else
-  python -m erddap_util "$@"
+  python -m erddaputil.cli "$@"
+
 fi
