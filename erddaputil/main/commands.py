@@ -71,7 +71,7 @@ class CommandResponse:
 
     @staticmethod
     def from_exception(ex: Exception):
-        return CommandResponse(f"{type(ex)}: {str(ex)}", "error")
+        return CommandResponse(f"{type(ex).__name__}: {str(ex)}", "error")
 
     @staticmethod
     @injector.inject

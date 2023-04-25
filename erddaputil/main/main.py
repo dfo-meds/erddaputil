@@ -103,8 +103,8 @@ class CommandReceiver(BaseThread):
             elif not isinstance(response, CommandResponse):
                 response = CommandResponse(str(response))
         except Exception as ex:
-            response = CommandResponse.from_exception(ex)
             self._log.exception(ex)
+            response = CommandResponse.from_exception(ex)
         return response.serialize().encode("utf-8", errors="replace")
 
     def _cleanup(self):

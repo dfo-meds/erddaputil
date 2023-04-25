@@ -24,6 +24,7 @@ class AuthChecker:
         self._salt_length = self.config.as_int(("erddaputil", "webapp", "salt_length"), default=16)
         self._min_iterations = self.config.as_int(("erddaputil", "webapp", "min_iterations"), default=700000)
         self._iterations_jitter = self.config.as_int(("erddaputil", "webapp", "iterations_jitter"), default=100000)
+        self._load_passwords()
 
     def _load_passwords(self):
         if self.password_file and self.password_file.exists():
@@ -91,7 +92,10 @@ def require_login(fn, checker: AuthChecker = None):
 
     @functools.wraps(fn)
     def wrapped(*args, **kwargs):
-        auth_header = flask.request.headers.get("Authorization").strip(" ")
+        auth_header = flask.request.headers.get("Authorization")
+        if auth_header is None:
+            return flask.abort(403)
+        auth_header = auth_header.strip()
         mode, credentials = auth_header.split(" ", maxsplit=1)
         if mode.lower() == "basic" and _basic_auth_check(credentials, checker):
             return fn(*args, **kwargs)

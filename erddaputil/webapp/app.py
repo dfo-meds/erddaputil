@@ -32,5 +32,3 @@ def init_app(app, config: zr.ApplicationConfig = None):
     if config.as_bool(("erddaputil", "webapp", "enable_management_api"), default=True):
         from .management import bp as man_bp
         app.register_blueprint(man_bp)
-
-    return app

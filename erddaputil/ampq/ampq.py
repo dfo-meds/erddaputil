@@ -18,6 +18,7 @@ class AmpqManager:
     @injector.construct
     def __init__(self):
         self.handler = None
+        self.log = logging.getLogger("erddaputil.ampq")
         mode = self.config.as_str(("erddaputil", "ampq", "implementation"), default="pika")
         try:
             if mode == "pika":
@@ -39,7 +40,8 @@ class AmpqManager:
             self.handler.send_message(cmd.serialize())
             return CommandResponse("AMPQ request queued", "success")
         except Exception as ex:
-            return CommandResponse(f"{type(ex)}: {str(ex)}", "error")
+            self.log.exception(ex)
+            return CommandResponse.from_exception(ex)
 
     @injector.inject
     def run_forever(self, halt_event, creg: "erddaputil.main.commands.CommandRegistry" = None):
@@ -53,7 +55,7 @@ class AmpqManager:
             if self.handler.hostname not in cmd.ignore_on_hosts:
                 creg.route_command(cmd)
         except Exception as ex:
-            pass
+            self.log.exception(ex)
 
 
 class AmpqReceiver:
