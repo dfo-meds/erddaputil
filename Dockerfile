@@ -22,6 +22,7 @@ RUN chmod +x start.sh
 COPY docker/config docker_config
 
 EXPOSE 9172
+EXPOSE 9173
 
 COPY erddaputil erddaputil
 
