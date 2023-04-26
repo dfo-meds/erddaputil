@@ -40,7 +40,7 @@ class ErddapLogManager(BaseThread):
             return None
         self._last_run = time.monotonic()
         count = 0
-        cutoff = datetime.datetime.now() - datetime.timedelta(days=self.log_retention_days)
+        cutoff = (datetime.datetime.now() - datetime.timedelta(days=self.log_retention_days)).timestamp()
         for file in os.scandir(self._log_path):
             if any(file.name.startswith(x) for x in self.log_file_prefixes) and file.stat().st_mtime < cutoff:
                 file.unlink()
