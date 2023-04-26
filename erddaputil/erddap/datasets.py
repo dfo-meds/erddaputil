@@ -208,6 +208,9 @@ class ErddapDatasetManager:
         if file.exists():
             with open(file, "r") as h:
                 file_list = set(x.strip("\r\n\t ").lower() for x in h.readlines())
+        new_entry = new_entry.lower()
+        if new_entry in file_list:
+            return
         file_list.add(new_entry.lower())
         with open(file, "w") as h:
             for entry in file_list:
