@@ -38,11 +38,11 @@ class ErddapLogManager(BaseThread):
             return False
         if self._last_run is not None and (time.monotonic() - self._last_run) < self.run_frequency:
             return None
-
+        self._last_run = time.monotonic()
         count = 0
         cutoff = datetime.datetime.now() - datetime.timedelta(days=self.log_retention_days)
         for file in os.scandir(self._log_path):
-            if file.stat().m_time < cutoff and any(file.name.startswith(x) for x in self.log_file_prefixes):
+            if any(file.name.startswith(x) for x in self.log_file_prefixes) and file.stat().st_mtime < cutoff:
                 file.unlink()
                 count += 1
         self.metrics.counter("erddaputil_logs_cleared").increment(count)
