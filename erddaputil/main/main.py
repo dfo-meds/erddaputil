@@ -7,7 +7,7 @@ from erddaputil.common import BaseThread
 from erddaputil.main.commands import Command, CommandResponse, CommandRegistry
 import time
 
-DEFAULT_PORT = 7012
+DEFAULT_PORT = 9172
 DEFAULT_HOST = "127.0.0.1"
 
 

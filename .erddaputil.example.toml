@@ -109,7 +109,7 @@ backups = ""
 # host = "127.0.0.1"
 
 ## Socket bind port for the ERDDAP management daemon
-# port = 7012
+# port = 9172
 
 [erddaputil.service]
 ## Socket bind address for the ERDDAP management daemon
@@ -117,7 +117,7 @@ backups = ""
 # host = "127.0.0.1"
 
 ## Socket bind port for the ERDDAP management daemon
-# port = 7012
+# port = 9172
 
 ## Socket backlog of connections before new connections are rejected
 # backlog = 20
