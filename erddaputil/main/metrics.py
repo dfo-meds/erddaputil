@@ -119,7 +119,7 @@ class LocalPrometheusSendThread(BaseThread):
         password = self.config.as_str(("erddaputil", "localprom", "password"))
         unpw = f"{username}:{password}"
         self._headers = {
-            "Authorization": f"basic {base64.b64encode(unpw)}"
+            "Authorization": f"basic {base64.b64encode(unpw.encode('utf-8')).decode('ascii')}"
         }
         self._max_concurrent_tasks = self.config.as_int(("erddaputil", "localprom", "max_tasks"), default=5)
         self._max_messages_to_send = self.config.as_int(("erddaputil", "localprom", "batch_size"), default=10)
