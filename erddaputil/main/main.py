@@ -50,8 +50,8 @@ class CommandSender:
 
     @injector.construct
     def __init__(self):
-        self._host = self.config.as_str(("erddaputil", "service", "host"), default=DEFAULT_HOST)
-        self._port = self.config.as_int(("erddaputil", "service", "port"), default=DEFAULT_PORT)
+        self._host = self.config.as_str(("erddaputil", "daemon", "host"), default=DEFAULT_HOST)
+        self._port = self.config.as_int(("erddaputil", "daemon", "port"), default=DEFAULT_PORT)
 
     def send_command(self, cmd: Command) -> CommandResponse:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
