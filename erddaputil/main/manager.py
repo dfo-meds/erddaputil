@@ -34,10 +34,13 @@ class Application:
         from erddaputil.erddap.commands import cg as _erddap_cg
         self._command_groups.append(_erddap_cg)
         self.log.info("Adding signal handlers")
+        self.log.info("Adding sigint")
         signal.signal(signal.SIGINT, self.sig_handle)
         if hasattr(signal, "SIGTERM"):
+            self.log.info("Adding sigterm")
             signal.signal(signal.SIGTERM, self.sig_handle)
         if hasattr(signal, "SIGBREAK"):
+            self.log.info("Adding sigbreak")
             signal.signal(signal.SIGBREAK, self.sig_handle)
 
     def sig_handle(self, a, b):

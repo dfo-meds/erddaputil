@@ -43,7 +43,8 @@ class ErddapLogManager(BaseThread):
         cutoff = (datetime.datetime.now() - datetime.timedelta(days=self.log_retention_days)).timestamp()
         for file in os.scandir(self._log_path):
             if any(file.name.startswith(x) for x in self.log_file_prefixes) and file.stat().st_mtime < cutoff:
-                file.unlink()
+                print(file.path)
+                os.unlink(file.path)
                 count += 1
         self.metrics.counter("erddaputil_logs_cleared").increment(count)
         return True
