@@ -6,7 +6,7 @@ VOLUME /erddap_data
 
 WORKDIR /erddap_util
 
-ENV ERDDAPUTIL_CONFIG_PATHS=/erddap_util/docker_config;/erddap_util/config
+ENV ERDDAPUTIL_CONFIG_PATH=/erddap_util/docker_config;/erddap_util/config
 
 RUN pip install --upgrade pip
 
