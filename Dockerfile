@@ -1,5 +1,7 @@
 FROM python:3.9.13-slim-bullseye
 
+RUN apt install dumb-init
+
 VOLUME /erddap_util/config
 
 VOLUME /erddap_data
@@ -26,5 +28,5 @@ EXPOSE 9173
 
 COPY erddaputil erddaputil
 
-ENTRYPOINT ["./start.sh"]
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/erddap_util/start.sh"]
 CMD ["daemon"]
