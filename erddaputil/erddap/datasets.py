@@ -253,6 +253,8 @@ class ErddapDatasetManager:
 
     def _expand_ip_addresses(self, ip_list, allow_ranges: bool = False):
         for ip in ip_list:
+            if not ip:
+                continue
             if "/" in ip:
                 # Handle a subnet range, which ERDDAP won't do
                 if "." in ip:
@@ -289,13 +291,16 @@ class ErddapDatasetManager:
         unlimited_element = None
 
         for a1 in datasets_root.iter("ipAddressUnlimited"):
-            unlimited_allow.update(x.strip("\r\n\t ").lower() for x in a1.text.split(","))
+            if a1.text:
+                unlimited_allow.update(x.strip("\r\n\t ").lower() for x in a1.text.split(","))
             unlimited_element = a1
         for a2 in datasets_root.iter("subscriptionEmailBlacklist"):
-            email_blocks.update(x.strip("\r\n\t ").lower() for x in a2.text.split(","))
+            if a2.text:
+                email_blocks.update(x.strip("\r\n\t ").lower() for x in a2.text.split(","))
             email_element = a2
         for a3 in datasets_root.iter("requestBlacklist"):
-            ip_blocks.update(x.strip("\r\n\t ").lower() for x in a3.text.split(","))
+            if a3.text:
+                ip_blocks.update(x.strip("\r\n\t ").lower() for x in a3.text.split(","))
             ip_element = a3
         if self._ip_block_list.exists():
             with open(self._ip_block_list, "r") as h:
@@ -322,7 +327,7 @@ class ErddapDatasetManager:
         if ip_blocks:
             ip_element.text = ",".join(self._expand_ip_addresses(ip_blocks, True))
         if email_blocks:
-            email_element.text = ",".join(email_blocks)
+            email_element.text = ",".join(e for e in email_blocks if e)
 
 
     def _do_recompilation(self, skip_errored_datasets: bool, reload_all_datasets: bool):
@@ -448,12 +453,20 @@ class ErddapDatasetManager:
         """For datasets"""
         for dataset_id in list(self._datasets_to_reload.keys()):
             if force or (time.monotonic() - self._datasets_to_reload[dataset_id][1]) > self._max_reload_delay:
-                self._reload_dataset(dataset_id, self._datasets_to_reload[dataset_id][0])
-                del self._datasets_to_reload[dataset_id]
+                try:
+                    self._reload_dataset(dataset_id, self._datasets_to_reload[dataset_id][0])
+                except Exception as ex:
+                    self.log.exception(ex)
+                finally:
+                    del self._datasets_to_reload[dataset_id]
 
     def _flush_recompilation(self, force: bool = False):
         if self._compilation_requested is None:
             return
         if force or (time.monotonic() - self._compilation_requested[2] > self._max_recompilation_delay):
-            self._do_recompilation(self._compilation_requested[0], self._compilation_requested[1])
-            self._compilation_requested = None
+            try:
+                self._do_recompilation(self._compilation_requested[0], self._compilation_requested[1])
+            except Exception as ex:
+                self.log.exception(ex)
+            finally:
+                self._compilation_requested = None
