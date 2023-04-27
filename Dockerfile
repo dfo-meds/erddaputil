@@ -1,6 +1,10 @@
 FROM python:3.9.13-slim-bullseye
 
+RUN apt update
+
 RUN apt install dumb-init
+
+RUN apt clean
 
 VOLUME /erddap_util/config
 
