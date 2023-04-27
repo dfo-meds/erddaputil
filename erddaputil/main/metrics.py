@@ -190,11 +190,13 @@ class LocalPrometheusSendThread(BaseThread):
                     await self._batch_send(session)
                 if self._active_tasks:
                     _, self._active_tasks = await asyncio.wait(self._active_tasks, timeout=self._wait_time, return_when=asyncio.FIRST_COMPLETED)
+                    self._active_tasks = list(self._active_tasks)
                 else:
                     await asyncio.sleep(self._wait_time)
             self._log.out(f"Cleaning up {len(self._active_tasks)} tasks...")
             while self._active_tasks:
                 _, self._active_tasks = await asyncio.wait(self._active_tasks, timeout=self._wait_time, return_when=asyncio.ALL_COMPLETED)
+                self._active_tasks = list(self._active_tasks)
 
 
 @injector.injectable_global
