@@ -329,7 +329,6 @@ class ErddapDatasetManager:
         if email_blocks:
             email_element.text = ",".join(e for e in email_blocks if e)
 
-
     def _do_recompilation(self, skip_errored_datasets: bool, reload_all_datasets: bool):
         datasets_xml = ET.parse(self.datasets_template_file)
         datasets_root = datasets_xml.getroot()
@@ -362,10 +361,13 @@ class ErddapDatasetManager:
 
         original_dataset_hashes = {}
         if self.datasets_file.exists():
-            original_xml = ET.parse(self.datasets_file)
-            original_root = original_xml.getroot()
-            for ds in original_root.iter("dataset"):
-                original_dataset_hashes[ds.attrib["datasetID"]] = self._hash_xml_element(ds)
+            try:
+                original_xml = ET.parse(self.datasets_file)
+                original_root = original_xml.getroot()
+                for ds in original_root.iter("dataset"):
+                    original_dataset_hashes[ds.attrib["datasetID"]] = self._hash_xml_element(ds)
+            except ET.ParseError:
+                pass
             if self.backup_directory and self.backup_directory.exists():
                 n = 1
                 backup_file = self.backup_directory / f"datasets.{datetime.datetime.now().strftime('%Y%m%d%H%M')}.{n}.xml"
@@ -376,9 +378,34 @@ class ErddapDatasetManager:
             else:
                 self.log.warning(f"Backups not configured, skipping backup process")
 
-        with open(self.datasets_file, "wb") as h:
+        with open(self.datasets_file, "w") as h:
             # ERDDAP requires these settings
-            datasets_xml.write(h, encoding="ISO-8859-1", xml_declaration=True, short_empty_elements=False)
+            indent(datasets_xml.getroot())
+            out_str = ET.tostring(datasets_xml.getroot(), encoding="unicode")
+            real_out_str = ""
+            for c in out_str:
+                if c == "\n" and real_out_str and real_out_str[-1] == "\n":
+                    continue
+                o = ord(c)
+                if o < 128:
+                    real_out_str += c
+                else:
+                    real_out_str += f"&#{o};"
+            h.write("<?xml version='1.0' encoding='ISO-8859-1'?>\n")
+            level = 0
+            for line in real_out_str.split("\n"):
+                line = line.strip()
+                if line.startswith("</"):
+                    level -= 1
+                if line.startswith("<"):
+                    h.write("  " * level)
+                h.write(line)
+                h.write("\n")
+                if line.startswith("<") and "</" not in line:
+                    level += 1
+                elif "</" in line and not line.startswith("<"):
+                    level -= 1
+
 
         reload_id = None
         for ds in datasets_root.iter("dataset"):
@@ -470,3 +497,10 @@ class ErddapDatasetManager:
                 self.log.exception(ex)
             finally:
                 self._compilation_requested = None
+
+
+def indent(elem, level=0):
+    elem.tail = "\n"
+    for se in elem:
+        indent(se, level + 1)
+    return elem

@@ -28,20 +28,22 @@ class Application:
         self.log = logging.getLogger("erddaputil")
         self._command_groups = []
 
+    def _register_signal_handler(self, signame):
+        if hasattr(signal, signame):
+            self.log.debug(f"Registering {signame}")
+            signal.signal(getattr(signal, signame), self.sig_handle)
+
     @injector.inject
     def _setup(self, edm: ErddapDatasetManager = None):
         # Make sure command groups got loaded here
         from erddaputil.erddap.commands import cg as _erddap_cg
         self._command_groups.append(_erddap_cg)
         self.log.info("Adding signal handlers")
-        self.log.info("Adding sigint")
-        signal.signal(signal.SIGINT, self.sig_handle)
-        if hasattr(signal, "SIGTERM"):
-            self.log.info("Adding sigterm")
-            signal.signal(signal.SIGTERM, self.sig_handle)
-        if hasattr(signal, "SIGBREAK"):
-            self.log.info("Adding sigbreak")
-            signal.signal(signal.SIGBREAK, self.sig_handle)
+        self._register_signal_handler("SIGINT")
+        self._register_signal_handler("SIGTERM")
+        self._register_signal_handler("SIGBREAK")
+        self._register_signal_handler("SIGQUIT")
+
 
     def sig_handle(self, a, b):
         """Handle SIGINT, SIGTERM, SIGBREAK"""
