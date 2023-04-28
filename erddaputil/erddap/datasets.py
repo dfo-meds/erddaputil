@@ -381,7 +381,7 @@ class ErddapDatasetManager:
         with open(self.datasets_file, "w") as h:
             # ERDDAP requires these settings
             indent(datasets_xml.getroot())
-            out_str = ET.tostring(datasets_xml.getroot(), encoding="unicode")
+            out_str = ET.tostring(datasets_xml.getroot(), encoding="unicode", short_empty_elements=False)
             real_out_str = ""
             for c in out_str:
                 if c == "\n" and real_out_str and real_out_str[-1] == "\n":
