@@ -401,7 +401,7 @@ class ErddapDatasetManager:
                     h.write("  " * level)
                 h.write(line)
                 h.write("\n")
-                if line.startswith("<") and "</" not in line:
+                if line.startswith("<") and "</" not in line and "/>" not in line:
                     level += 1
                 elif "</" in line and not line.startswith("<"):
                     level -= 1
