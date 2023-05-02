@@ -18,6 +18,7 @@ class ErddapLogTail(BaseThread):
         self._default_take_size = self.config.as_int(("erddaputil", "logtail", "read_size_for_hash"), default=10000)
         self._buffer_size = self.config.as_int(("erddaputil", "logtail", "buffer_size"), default=20000)
         self._files_tailed = {}
+        self._output_queues = []
         if self.bpd:
             self._files_tailed["erddap_main_log"] = (
                 self.bpd / "logs" / "log.txt",
@@ -39,7 +40,7 @@ class ErddapLogTail(BaseThread):
                         line = line.strip("\r\n\t ")
                         if line:
                             pieces = line.split("|")
-                            self._log_file_info[pieces[0]] = pieces[1:]
+                            self._log_file_info[pieces[0]] = [int(pieces[1]), pieces[2], int(pieces[3])]
 
     def _save_log_file_info(self):
         with open(self._info_file, "w") as h:
