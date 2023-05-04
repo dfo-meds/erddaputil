@@ -9,6 +9,5 @@ flask
 prometheus_client
 requests
 aiohttp
-clusterfiles>=0.1.5
 azure-identity
 azure-storage-blob
