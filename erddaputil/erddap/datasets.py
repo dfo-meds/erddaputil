@@ -359,12 +359,14 @@ class ErddapDatasetManager:
 
         self._compile_block_allow_lists(datasets_root)
 
+        reload_id = None
         original_dataset_hashes = {}
         if self.datasets_file.exists():
             try:
                 original_xml = ET.parse(self.datasets_file)
                 original_root = original_xml.getroot()
                 for ds in original_root.iter("dataset"):
+                    reload_id = ds.attrib["datasetID"]
                     original_dataset_hashes[ds.attrib["datasetID"]] = self._hash_xml_element(ds)
             except ET.ParseError:
                 pass
@@ -406,19 +408,15 @@ class ErddapDatasetManager:
                 elif "</" in line and not line.startswith("<"):
                     level -= 1
 
-
-        reload_id = None
         for ds in datasets_root.iter("dataset"):
             updated_hash = self._hash_xml_element(ds)
             ds_id = ds.attrib['datasetID']
-            reload_id = ds_id
             if ds_id not in original_dataset_hashes or original_dataset_hashes[ds_id] != updated_hash:
                 self._queue_dataset_reload(ds_id, 2)
             elif reload_all_datasets:
                 self._queue_dataset_reload(ds_id, 1)
 
-        if reload_id and not self._datasets_to_reload:
-            self._queue_dataset_reload(reload_id, 0)
+        self._queue_dataset_reload(reload_id, 0)
 
         gate = (datetime.datetime.now() - datetime.timedelta(days=self._backup_retention_days)).timestamp()
         total_count = 0
