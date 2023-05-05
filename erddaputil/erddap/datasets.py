@@ -417,7 +417,7 @@ class ErddapDatasetManager:
             elif reload_all_datasets:
                 self._queue_dataset_reload(ds_id, 1)
 
-        if not self._datasets_to_reload:
+        if reload_id and not self._datasets_to_reload:
             self._queue_dataset_reload(reload_id, 0)
 
         gate = (datetime.datetime.now() - datetime.timedelta(days=self._backup_retention_days)).timestamp()
