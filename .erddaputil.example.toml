@@ -80,6 +80,9 @@ datasets_xml = ""
 ## Enter the path to store backups of the datasets.xml file or leave blank to not have backups
 backups = ""
 
+## Enter the path to ERDDAP's home page (e.g. http://localhost:8080/erddap/)
+base_url = ""
+
 ## Uncomment these if you want to change the default locations
 # subscription_block_list = ""          # Defaults to .email_block_list.txt in XML template directory
 # ip_block_list = ""                    # Defaults to .ip_block_list.txt in XML template directory

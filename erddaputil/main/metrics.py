@@ -47,7 +47,7 @@ class _ScriptCounterMetric(_ScriptMetric):
     def __init__(self, *args, **kwargs):
         super().__init__('counter', *args, **kwargs)
 
-    def increment(self, amount=1, exemplar=None):
+    def inc(self, amount=1, exemplar=None):
         self.send_message('inc', amount=amount, exemplar=exemplar)
 
 
@@ -56,14 +56,14 @@ class _ScriptGaugeMetric(_ScriptMetric):
     def __init__(self, *args, **kwargs):
         super().__init__('gauge', *args, **kwargs)
 
-    def increment(self, value=1):
-        pass
+    def inc(self, amount=1):
+        self.send_message('inc', amount=amount)
 
-    def decrement(self, value=1):
-        pass
+    def dec(self, amount=1):
+        self.send_message('dec', amount=amount)
 
-    def set(self, value):
-        pass
+    def set(self, amount):
+        self.send_message('set', amount=amount)
 
 
 class _ScriptSummaryMetric(_ScriptMetric):
@@ -72,16 +72,17 @@ class _ScriptSummaryMetric(_ScriptMetric):
         super().__init__('summary', *args, **kwargs)
 
     def observe(self, value):
-        pass
+        self.send_message('observe', value=value)
 
 
 class _ScriptHistogramMetric(_ScriptMetric):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, buckets=None, **kwargs):
         super().__init__('histogram', *args, **kwargs)
+        self.buckets = buckets
 
     def observe(self, value, exemplar=None):
-        pass
+        self.send_message('observe', value=value, exemplar=exemplar, _buckets=self.buckets)
 
 
 class _ScriptInfoMetric(_ScriptMetric):
@@ -90,7 +91,7 @@ class _ScriptInfoMetric(_ScriptMetric):
         super().__init__('info', *args, **kwargs)
 
     def info(self, key, value):
-        pass
+        self.send_message('info', key=key, value=value)
 
 
 class _ScriptEnumMetric(_ScriptMetric):
@@ -99,7 +100,7 @@ class _ScriptEnumMetric(_ScriptMetric):
         super().__init__('enum', *args, **kwargs)
 
     def state(self, state_name):
-        pass
+        self.send_message('state', state_name=state_name)
 
 
 class LocalPrometheusSendThread(BaseThread):
@@ -225,23 +226,23 @@ class ScriptMetrics:
         if self._sender:
             self._sender.send_message(metric)
 
-    def enum(self, name: str) -> _ScriptEnumMetric:
-        return self._cached_metric(_ScriptEnumMetric, name)
+    def enum(self, name: str, description: str = "") -> _ScriptEnumMetric:
+        return self._cached_metric(_ScriptEnumMetric, name, description=description)
 
-    def info(self, name: str) -> _ScriptInfoMetric:
-        return self._cached_metric(_ScriptInfoMetric, name)
+    def info(self, name: str, description: str = "") -> _ScriptInfoMetric:
+        return self._cached_metric(_ScriptInfoMetric, name, description=description)
 
-    def counter(self, name: str, labels: dict = None) -> _ScriptCounterMetric:
-        return self._cached_metric(_ScriptCounterMetric, name, labels=labels)
+    def counter(self, name: str, labels: dict = None, description: str = "") -> _ScriptCounterMetric:
+        return self._cached_metric(_ScriptCounterMetric, name, labels=labels, description=description)
 
-    def gauge(self, name: str, labels: dict = None) -> _ScriptGaugeMetric:
-        return self._cached_metric(_ScriptCounterMetric, name, labels=labels)
+    def gauge(self, name: str, labels: dict = None, description: str = "") -> _ScriptGaugeMetric:
+        return self._cached_metric(_ScriptCounterMetric, name, labels=labels, description=description)
 
-    def summary(self, name: str, labels: dict = None) -> _ScriptSummaryMetric:
-        return self._cached_metric(_ScriptSummaryMetric, name, labels=labels)
+    def summary(self, name: str, labels: dict = None, description: str = "") -> _ScriptSummaryMetric:
+        return self._cached_metric(_ScriptSummaryMetric, name, labels=labels, description=description)
 
-    def histogram(self, name: str, labels: dict = None) -> _ScriptHistogramMetric:
-        return self._cached_metric(_ScriptHistogramMetric, name, labels=labels)
+    def histogram(self, name: str, labels: dict = None, description: str = "") -> _ScriptHistogramMetric:
+        return self._cached_metric(_ScriptHistogramMetric, name, labels=labels, description=description)
 
     def _cached_metric(self, metric_cls: type, name: str, *args, labels: dict = None, **kwargs):
         label_key = "" if not labels else ("__" + "__".join(f"{x}_{labels[x]}" for x in labels.keys()))

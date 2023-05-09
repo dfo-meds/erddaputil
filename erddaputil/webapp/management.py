@@ -1,32 +1,10 @@
 import flask
-from .common import require_login
+from .common import require_login, time_with_errors, error_shield
 from erddaputil.main.commands import CommandResponse
-import functools
-import logging
-from werkzeug.exceptions import HTTPException
+from prometheus_client import Summary
 
 bp = flask.Blueprint("management", __name__)
 
-
-def error_shield(fn):
-
-    @functools.wraps(fn)
-    def wrapped(*args, **kwargs):
-        try:
-            resp = fn(*args, **kwargs)
-            if resp is None:
-                return {"success": True, "message": ""}, 200
-            elif resp.state == 'success':
-                return {"success": True, "message": resp.message}, 200
-            else:
-                return {"success": False, "message": resp.message}, 200
-        except HTTPException as ex:
-            return {"success": False, "message": str(ex)}, ex.code
-        except Exception as ex:
-            logging.getLogger("erddaputil.webapp").exception(ex)
-            return {"success": False, "message": f"{type(ex).__name__}: {str(ex)}"}, 500
-
-    return wrapped
 
 
 def _map_dataset_ids(ds_id_list, cb, *args, **kwargs):
@@ -40,7 +18,11 @@ def _map_dataset_ids(ds_id_list, cb, *args, **kwargs):
     return CommandResponse(messages, 'error' if has_errors else 'success')
 
 
+DATASET_RELOAD = Summary('erddaputil_webapp_dataset_reload', 'Time to reload a dataset')
+
+
 @bp.route("/datasets/reload", methods=["POST"])
+@time_with_errors(DATASET_RELOAD)
 @error_shield
 @require_login
 def reload_dataset():
@@ -58,7 +40,11 @@ def reload_dataset():
         return _map_dataset_ids(body['dataset_id'], reload_dataset, flag=body['flag'])
 
 
+DATASET_ACTIVATE = Summary('erddaputil_webapp_dataset_activation', 'Time to activate a dataset')
+
+
 @bp.route("/datasets/activate", methods=["POST"])
+@time_with_errors(DATASET_ACTIVATE)
 @error_shield
 @require_login
 def activate_dataset():
@@ -72,7 +58,11 @@ def activate_dataset():
         return _map_dataset_ids(body['dataset_id'], activate_dataset)
 
 
+DATASET_DEACTIVATE = Summary('erddaputil_webapp_dataset_activation', 'Time to activate a dataset')
+
+
 @bp.route("/datasets/deactivate", methods=["POST"])
+@time_with_errors(DATASET_DEACTIVATE)
 @error_shield
 @require_login
 def deactivate_dataset():
@@ -86,7 +76,58 @@ def deactivate_dataset():
         return _map_dataset_ids(body['dataset_id'], deactivate_dataset)
 
 
+LOG_FLUSH = Summary('erddaputil_webapp_flush_logs', 'Time to flush logs')
+
+
+@bp.route("/flush-logs", methods=["POST"])
+@time_with_errors(LOG_FLUSH)
+@error_shield
+@require_login
+def flush_logs():
+    from erddaputil.erddap.commands import flush_logs
+    return flush_logs()
+
+
+LIST_DATASETS = Summary('erddaputil_webapp_list_datasets', 'Time to list datasets')
+
+
+@bp.route("/datasets", methods=["GET"])
+@time_with_errors(LIST_DATASETS)
+@require_login
+def list_datasets():
+    from erddaputil.erddap.commands import list_datasets
+    ds_resp = list_datasets()
+    item_list = ds_resp.message.split("\n")
+    return {
+        'success': True,
+        'message': item_list[0],
+        'datasets': item_list[1:]
+    }, 200
+
+
+CLEAR_CACHE = Summary('erddaputil_webapp_clear_cache', 'Time to clear the cache')
+
+
+@bp.route("/clear-cache", methods=["POST"])
+@time_with_errors(CLEAR_CACHE)
+@error_shield
+@require_login
+def clear_cache():
+    from erddaputil.erddap.commands import clear_erddap_cache
+    body = flask.request.json
+    if "dataset_id" not in body:
+        return clear_erddap_cache("")
+    elif isinstance(body["dataset_id"], str):
+        return clear_erddap_cache(body["dataset_id"])
+    else:
+        return _map_dataset_ids(body['dataset_id'], clear_erddap_cache)
+
+
+COMPILE_DATASETS = Summary('erddaputil_webapp_compile_datasets', 'Time to compile the datasets')
+
+
 @bp.route("/datasets/compile", methods=["POST"])
+@time_with_errors(COMPILE_DATASETS)
 @error_shield
 @require_login
 def compile_datasets():
@@ -94,7 +135,11 @@ def compile_datasets():
     return compile_datasets()
 
 
+BLOCK_IP = Summary('erddaputil_webapp_block_ip', 'Time to block an IP address')
+
+
 @bp.route("/block/ip", methods=["POST"])
+@time_with_errors(BLOCK_IP)
 @error_shield
 @require_login
 def block_ip():
@@ -104,7 +149,11 @@ def block_ip():
     return block_ip(flask.request.json["ip"])
 
 
+BLOCK_EMAIL = Summary('erddaputil_webapp_block_email', 'Time to block an email address')
+
+
 @bp.route("/block/email", methods=["POST"])
+@time_with_errors(BLOCK_EMAIL)
 @error_shield
 @require_login
 def block_email():
@@ -114,7 +163,11 @@ def block_email():
     return block_email(flask.request.json["email"])
 
 
+ALLOW_UNLIMITED = Summary('erddaputil_webapp_allow_unlimited', 'Time to allow an IP address unlimited access')
+
+
 @bp.route("/allow/unlimited", methods=["POST"])
+@time_with_errors(ALLOW_UNLIMITED)
 @error_shield
 @require_login
 def allow_unlimited():
@@ -123,3 +176,44 @@ def allow_unlimited():
         raise flask.abort(400)
     return allow_unlimited(flask.request.json["ip"])
 
+
+UNBLOCK_IP = Summary('erddaputil_webapp_unblock_ip', 'Time to unblock an ip address')
+
+
+@bp.route("/unblock/ip", methods=["POST"])
+@time_with_errors(UNBLOCK_IP)
+@error_shield
+@require_login
+def unblock_ip():
+    from erddaputil.erddap.commands import unblock_ip
+    if "ip" not in flask.request.json:
+        raise flask.abort(400)
+    return unblock_ip(flask.request.json["ip"])
+
+
+UNBLOCK_EMAIL = Summary('erddaputil_webapp_unblock_email', 'Time to unblock an email')
+
+
+@bp.route("/unblock/email", methods=["POST"])
+@time_with_errors(UNBLOCK_EMAIL)
+@error_shield
+@require_login
+def unblock_email():
+    from erddaputil.erddap.commands import unblock_email
+    if "email" not in flask.request.json:
+        raise flask.abort(400)
+    return unblock_email(flask.request.json["email"])
+
+
+UNALLOW_UNLIMITED = Summary('erddaputil_webapp_unallow_unlimited', 'Time to unallow an unlimited IP')
+
+
+@bp.route("/unallow/unlimited", methods=["POST"])
+@time_with_errors(UNALLOW_UNLIMITED)
+@error_shield
+@require_login
+def unallow_unlimited():
+    from erddaputil.erddap.commands import unallow_unlimited
+    if "ip" not in flask.request.json:
+        raise flask.abort(400)
+    return unallow_unlimited(flask.request.json["ip"])

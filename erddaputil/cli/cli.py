@@ -124,6 +124,39 @@ def allow_unlimited(ip, delay, broadcast):
 
 
 @base.command
+@click.argument("email")
+@click.option("--delay/--no-delay", "-d/-i", default=True)
+@click.option("--broadcast/--no-broadcast", "-C/-L", default=True)
+@error_shield
+def unblock_email(email, delay, broadcast):
+    """Block subscription access to an email"""
+    from erddaputil.erddap.commands import unblock_email
+    return unblock_email(email, flush=not delay, _broadcast=broadcast)
+
+
+@base.command
+@click.argument("ip")
+@click.option("--delay/--no-delay", "-d/-i", default=True)
+@click.option("--broadcast/--no-broadcast", "-C/-L", default=True)
+@error_shield
+def unblock_ip(ip, delay, broadcast):
+    """Block all requests from an IP address"""
+    from erddaputil.erddap.commands import unblock_ip
+    return unblock_ip(ip, flush=not delay, _broadcast=broadcast)
+
+
+@base.command
+@click.argument("ip")
+@click.option("--delay/--no-delay", "-d/-i", default=True)
+@click.option("--broadcast/--no-broadcast", "-C/-L", default=True)
+@error_shield
+def remove_unlimited(ip, delay, broadcast):
+    """Allow unlimited access by an IP address"""
+    from erddaputil.erddap.commands import unallow_unlimited
+    return unallow_unlimited(ip, flush=not delay, _broadcast=broadcast)
+
+
+@base.command
 @click.argument("username")
 @click.password_option()
 @injector.inject
@@ -131,3 +164,24 @@ def set_password(username, password, ac: AuthChecker = None):
     """Set the password for a user's access to a web API"""
     ac.set_credentials(username, password)
     print(f"Credentials set for {username}")
+
+
+@base.command
+@click.option("--broadcast/--no-broadcast", "-C/-L", default=True)
+def flush_logs(broadcast):
+    from erddaputil.erddap.commands import flush_logs
+    return flush_logs(broadcast)
+
+
+@base.command
+def list_datasets():
+    from erddaputil.erddap.commands import list_datasets
+    return list_datasets()
+
+
+@base.command
+@click.argument("dataset_id", default="")
+@click.option("--broadcast/--no-broadcast", "-C/-L", default=True)
+def clear_cache(dataset_id, broadcast):
+    from erddaputil.erddap.commands import clear_erddap_cache
+    return clear_erddap_cache(dataset_id, broadcast)

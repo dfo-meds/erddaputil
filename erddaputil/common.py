@@ -6,6 +6,7 @@ import pathlib
 import os
 import zrlog
 import importlib
+import timeit
 
 ROOT = pathlib.Path(__file__).absolute().parent
 
@@ -46,16 +47,34 @@ class BaseThread(threading.Thread):
         self._halt = threading.Event()
         self._loop_delay = loop_delay
         self.daemon = is_daemon
+        self._metric_results = None
 
     def terminate(self):
         self._halt.set()
+
+    def set_run_metric(self, metric_success, metric_failure, cb):
+        self._metric_results = (metric_success, metric_failure, cb)
 
     @injector.as_thread_run
     def run(self):
         try:
             self._setup()
             while not self._halt.is_set():
-                self._run()
+                result = None
+                start_time = timeit.default_timer()
+                try:
+                    result = self._run()
+                except (KeyboardInterrupt, SystemExit) as ex:
+                    result = None
+                    raise ex
+                except Exception as ex:
+                    self._log.exception(ex)
+                    result = False
+                finally:
+                    end_time = timeit.default_timer()
+                    if self._metric_results and result is not None:
+                        metric = self._metric_results[0] if result else self._metric_results[1]
+                        getattr(metric, self._metric_results[2])(max(end_time - start_time, 0.0))
                 self._sleep(self._loop_delay)
         finally:
             self._cleanup()

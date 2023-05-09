@@ -1,8 +1,17 @@
 from erddaputil.main import CommandGroup
 from autoinject import injector
 from .datasets import ErddapDatasetManager
+from erddaputil.main import CommandResponse
 
 cg = CommandGroup()
+
+
+def flush_logs(_broadcast: bool = True):
+    return cg.remote_command("flush_logs", _broadcast=_broadcast)
+
+
+def list_datasets():
+    return cg.remote_command("list_datasets", _broadcast=False)
 
 
 def reload_dataset(dataset_id: str, flag: int = 0, flush: bool = False, _broadcast: bool = True):
@@ -21,16 +30,32 @@ def reload_all_datasets(flag: int = 0, flush: bool = False, _broadcast: bool = T
     return cg.remote_command("reload_all_datasets", flag=flag, flush=flush, _broadcast=_broadcast)
 
 
+def clear_erddap_cache(dataset_id: str = None, _broadcast: bool = True):
+    return cg.remote_command('clear_erddap_cache', dataset_id=dataset_id or "", _broadcast=_broadcast)
+
+
 def block_email(email_address, flush: bool = False, _broadcast: bool = True):
-    return cg.remote_command("block_email", email_address=email_address, flush=flush, _broadcast=_broadcast)
+    return cg.remote_command("manage_email_block_list", email_address=email_address, block=True, flush=flush, _broadcast=_broadcast)
 
 
 def block_ip(ip_address, flush: bool = False, _broadcast: bool = True):
-    return cg.remote_command("block_ip", ip_address=ip_address, flush=flush, _broadcast=_broadcast)
+    return cg.remote_command("manage_ip_block_list", ip_address=ip_address, block=True, flush=flush, _broadcast=_broadcast)
 
 
 def allow_unlimited(ip_address, flush: bool = False, _broadcast: bool = True):
-    return cg.remote_command("allow_unlimited", ip_address=ip_address, flush=flush, _broadcast=_broadcast)
+    return cg.remote_command("manage_unlimited_allow_list", ip_address=ip_address, allow=True, flush=flush, _broadcast=_broadcast)
+
+
+def unblock_email(email_address, flush: bool = False, _broadcast: bool = True):
+    return cg.remote_command("manage_email_block_list", email_address=email_address, block=False, flush=flush, _broadcast=_broadcast)
+
+
+def unblock_ip(ip_address, flush: bool = False, _broadcast: bool = True):
+    return cg.remote_command("manage_ip_block_list", ip_address=ip_address, block=False, flush=flush, _broadcast=_broadcast)
+
+
+def unallow_unlimited(ip_address, flush: bool = False, _broadcast: bool = True):
+    return cg.remote_command("manage_unlimited_allow_list", ip_address=ip_address, allow=False, flush=flush, _broadcast=_broadcast)
 
 
 def compile_datasets(skip_errored_datasets: bool = None, reload_all_datasets: bool = False, flush: bool = False, _broadcast: bool = True):
@@ -41,6 +66,27 @@ def compile_datasets(skip_errored_datasets: bool = None, reload_all_datasets: bo
         immediate=flush,
         _broadcast=_broadcast
     )
+
+
+@cg.route("list_datasets")
+@injector.inject
+def _clear_erddap_cache(*args, edm: ErddapDatasetManager = None, **kwargs):
+    ds_list = edm.list_datasets()
+    return CommandResponse(ds_list, 'success')
+
+
+@cg.route("flush_logs")
+@injector.inject
+def _flush_logs(*args, edm: ErddapDatasetManager = None, **kwargs):
+    edm.flush_logs()
+    return True
+
+
+@cg.route("clear_erddap_cache")
+@injector.inject
+def _clear_erddap_cache(*args, edm: ErddapDatasetManager = None, **kwargs):
+    edm.clear_erddap_cache(*args, **kwargs)
+    return True
 
 
 @cg.route("reload_all_datasets")
@@ -64,24 +110,24 @@ def _set_active_flag(*args, edm: ErddapDatasetManager = None, **kwargs):
     return True
 
 
-@cg.route("block_email")
+@cg.route("manage_email_block_list")
 @injector.inject
 def _block_email(*args, edm: ErddapDatasetManager = None, **kwargs):
-    edm.block_email(*args, **kwargs)
+    edm.update_email_block_list(*args, **kwargs)
     return True
 
 
-@cg.route("block_ip")
+@cg.route("manage_ip_block_list")
 @injector.inject
 def _block_ip(*args, edm: ErddapDatasetManager = None, **kwargs):
-    edm.block_ip(*args, **kwargs)
+    edm.update_ip_block_list(*args, **kwargs)
     return True
 
 
-@cg.route("allow_unlimited")
+@cg.route("manage_unlimited_allow_list")
 @injector.inject
 def _allow_unlimited(*args, edm: ErddapDatasetManager = None, **kwargs):
-    edm.allow_unlimited(*args, **kwargs)
+    edm.update_allow_unlimited_list(*args, **kwargs)
     return True
 
 

@@ -7,6 +7,59 @@ import time
 import flask
 import base64
 import functools
+import logging
+import functools
+import logging
+from prometheus_client import Summary
+from werkzeug.exceptions import HTTPException
+import timeit
+
+
+
+def time_with_errors(summary: Summary):
+
+    def outer(fn):
+
+        @functools.wraps(fn)
+        def wrapped(*args, **kwargs):
+            start = timeit.default_timer()
+            state = 'success'
+            try:
+                res = fn(*args, **kwargs)
+                if isinstance(res, dict) and 'success' in res and not res['success']:
+                    state = 'error'
+            except Exception as ex:
+                state = 'error'
+                raise ex
+            finally:
+                summary.labels(result=state).observe(max(0.0, timeit.default_timer() - start))
+        return wrapped
+
+    return outer
+
+
+def error_shield(fn):
+
+    @functools.wraps(fn)
+    def wrapped(*args, **kwargs):
+        try:
+            resp = fn(*args, **kwargs)
+            if resp is None:
+                return {"success": True, "message": ""}, 200
+            elif hasattr(resp, 'state'):
+                if resp.state == 'success':
+                    return {"success": True, "message": resp.message}, 200
+                else:
+                    return {"success": False, "message": resp.message}, 200
+            else:
+                return resp
+        except HTTPException as ex:
+            return {"success": False, "message": str(ex)}, ex.code
+        except Exception as ex:
+            logging.getLogger("erddaputil.webapp").exception(ex)
+            return {"success": False, "message": f"{type(ex).__name__}: {str(ex)}"}, 500
+
+    return wrapped
 
 
 @injector.injectable_global
@@ -16,7 +69,13 @@ class AuthChecker:
 
     @injector.construct
     def __init__(self):
-        self.password_file = self.config.as_path(("erddaputil", "webapp", "password_file"))
+        self._log = logging.getLogger("erddaputil.webapp.auth")
+        self.password_file = self.config.as_path(("erddaputil", "webapp", "password_file"), default=None)
+        if not self.password_file:
+            self._log.warning(f"Password file is not configured, authentication will not work")
+        elif not self.password_file.parent.exists():
+            self._log.warning(f"Password file directory does not exist, authentication will not work")
+            self.password_file = None
         self.passwords = {}
         self._load_time = None
         self.peppers = self.config.as_list(("erddaputil", "webapp", "peppers"), default=[""])
@@ -39,9 +98,11 @@ class AuthChecker:
                     username, hashname, salt, iterations, phash = line.split("||", maxsplit=4)
                     self.passwords[username] = (hashname, salt, int(iterations), phash)
             self._load_time = os.path.getmtime(self.password_file)
+            self._log.info(f"{len(self.passwords)} loaded from {self.password_file}")
 
     def _save_passwords(self):
         if self.password_file:
+            self._log.info(f"Saving passwords to file")
             with open(self.password_file, "w") as h:
                 for un in self.passwords:
                     hn, salt, iters, phash = self.passwords[un]
@@ -82,9 +143,39 @@ class AuthChecker:
                 full_salt = salt + pepper
                 check_phash = hashlib.pbkdf2_hmac(hashname, password.encode("utf-8"), full_salt.encode("utf-8"), iterations)
                 if secrets.compare_digest(check_phash.hex(), phash):
+                    self._log.info(f"Access authorized for {username}")
                     return True
-        time.sleep(0.1 + (secrets.randbelow(10) / 10))
+            self._log.warning(f"Invalid password for {username}")
+        else:
+            self._log.warning(f"Username {username} not recognized")
         return False
+
+    def basic_auth(self, credentials):
+        try:
+            decoded = base64.b64decode(credentials).decode("utf-8")
+            if ":" not in decoded:
+                self._log.warning("Malformed basic auth header, missing : character")
+                return False
+            un, pwd = decoded.split(":", maxsplit=1)
+            return self.check_credentials(un, pwd)
+        except Exception as ex:
+            self._log.exception(ex)
+            return False
+
+    def handle_auth_header(self, auth_header):
+        if auth_header is None or auth_header == "":
+            self._log.warning(f"No authorization header present")
+            return False
+        elif " " not in auth_header:
+            self._log.warning("Malformed authorization header")
+            return False
+        else:
+            mode, credentials = auth_header.strip().split(" ", maxsplit=1)
+            if mode.lower() == "basic":
+                return self.basic_auth(credentials)
+            else:
+                self._log.warning(f"Unrecognized authorization mode {mode}")
+                return False
 
 
 @injector.inject
@@ -93,23 +184,9 @@ def require_login(fn, checker: AuthChecker = None):
     @functools.wraps(fn)
     def wrapped(*args, **kwargs):
         auth_header = flask.request.headers.get("Authorization")
-        if auth_header is None:
-            return flask.abort(403)
-        auth_header = auth_header.strip()
-        mode, credentials = auth_header.split(" ", maxsplit=1)
-        if mode.lower() == "basic" and _basic_auth_check(credentials, checker):
+        if checker.handle_auth_header(auth_header):
             return fn(*args, **kwargs)
+        time.sleep(0.1 + (secrets.randbelow(10) / 10))
         return flask.abort(403)
 
     return wrapped
-
-
-def _basic_auth_check(credentials, checker: AuthChecker):
-    try:
-        decoded = base64.b64decode(credentials).decode("utf-8")
-        if ":" not in decoded:
-            return False
-        un, pwd = decoded.split(":", maxsplit=1)
-        return checker.check_credentials(un, pwd)
-    except Exception as ex:
-        return False

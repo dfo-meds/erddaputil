@@ -1,11 +1,14 @@
 import flask
-from prometheus_client import Counter
+from prometheus_client import Counter, Gauge, Histogram, Summary, Enum, Info
 from autoinject import injector
-import zirconium as zr
 from threading import RLock
-from .common import require_login
+from .common import require_login, time_with_errors
+import logging
 
 bp = flask.Blueprint("metrics", __name__)
+
+PROM_METRICS = Counter("erddaputil_webapp_individual_metrics_pushed", "Number of metrics pushed to the ERDDAPUtil endpoint", labelnames=("result",))
+PROM_METRIC_REQUESTS = Summary("erddaputil_webapp_metric_push", "Time to execute a metric push")
 
 
 class PromMetricWrapper:
@@ -50,13 +53,24 @@ class WebCollectedMetrics:
         use_labels = True
         if type_name == "counter":
             metric = Counter(metric_name, description, [str(x) for x in labels.keys()])
-        # TODO: other metric types
+        elif type_name == "gauge":
+            metric = Gauge(metric_name, description, [str(x) for x in labels.keys()])
+        elif type_name == "summary":
+            metric = Summary(metric_name, description, [str(x) for x in labels.keys()])
+        elif type_name == 'histogram':
+            buckets = kwargs.pop('_buckets', default=None)
+            metric = Histogram(metric_name, description, [str(x) for x in labels.keys()], buckets=buckets)
+        elif type_name == 'info':
+            metric = Info(metric_name, description, [str(x) for x in labels.keys()])
+        elif type_name == 'enum':
+            metric = Enum(metric_name, description, [str(x) for x in labels.keys()])
         if metric is None:
             raise ValueError(f"Invalid metric type: {type_name}")
         return PromMetricWrapper(metric, use_labels)
 
 
 @bp.route("/push", methods=["POST"])
+@time_with_errors(PROM_METRIC_REQUESTS)
 @require_login
 @injector.inject
 def handle_metrics(wc_metrics: WebCollectedMetrics = None):
@@ -66,14 +80,20 @@ def handle_metrics(wc_metrics: WebCollectedMetrics = None):
         for json_metric in flask.request.json.get("metrics"):
             try:
                 wc_metrics.handle_request(**json_metric)
+                PROM_METRICS.labels(result="success").inc()
             except Exception as ex:
+                logging.getLogger("erddaputil.webapp.metrics").exception(ex)
                 errors.append(str(ex))
                 result = "error"
+                PROM_METRICS.labels(result="error").inc()
     else:
         try:
             wc_metrics.handle_request(**flask.request.json)
+            PROM_METRICS.labels(result="success").inc()
         except Exception as ex:
+            logging.getLogger("erddaputil.webapp.metrics").exception(ex)
             errors.append(str(ex))
             result = "error"
+            PROM_METRICS.labels(result="error").inc()
     return {'status': result, 'errors': errors}, 200 if result == 'success' else 500
 
