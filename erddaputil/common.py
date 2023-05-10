@@ -1,3 +1,4 @@
+"""Shared utilities."""
 import threading
 from autoinject import injector
 import zirconium as zr
@@ -7,12 +8,14 @@ import os
 import zrlog
 import importlib
 import timeit
+import typing as t
 
 ROOT = pathlib.Path(__file__).absolute().parent
 
 
 @zr.configure
 def _config(app: zr.ApplicationConfig):
+    """Setup the configuration."""
     dirs = [
         ROOT,
         pathlib.Path("~").expanduser().absolute(),
@@ -25,10 +28,13 @@ def _config(app: zr.ApplicationConfig):
 
 
 def init_config():
+    """Initialize the logging. """
     zrlog.init_logging()
 
 
-def load_object(obj_name: str):
+def load_object(obj_name: str) -> t.Any:
+    """Imports an object from a string"""
+    # obj_name should something like package.subpackage.object_name
     package_dot_pos = obj_name.rfind(".")
     package = obj_name[0:package_dot_pos]
     specific_cls_name = obj_name[package_dot_pos + 1:]
@@ -37,6 +43,7 @@ def load_object(obj_name: str):
 
 
 class BaseThread(threading.Thread):
+    """Provides common tools for threads that get run from a master controller."""
 
     config: zr.ApplicationConfig = None
 
@@ -50,15 +57,21 @@ class BaseThread(threading.Thread):
         self._metric_results = None
 
     def terminate(self):
+        """Terminate the thread by setting the event.
+
+        Callers should then use join() to wait for the current run to finish.
+        """
         self._halt.set()
 
-    def set_run_metric(self, metric_success, metric_failure, cb):
+    def set_run_metric(self, metric_success: "erddaputil.main.metrics.AbstractMetric", metric_failure: "erddaputil.main.metrics.AbstractMetric", cb: str):
+        """Set the success and failure metrics as given, along with a callback to call."""
         self._metric_results = (metric_success, metric_failure, cb)
 
     @injector.as_thread_run
     def run(self):
         try:
             self._setup()
+
             while not self._halt.is_set():
                 result = None
                 start_time = timeit.default_timer()
@@ -76,18 +89,23 @@ class BaseThread(threading.Thread):
                         metric = self._metric_results[0] if result else self._metric_results[1]
                         getattr(metric, self._metric_results[2])(max(end_time - start_time, 0.0))
                 self._sleep(self._loop_delay)
+
         finally:
             self._cleanup()
 
     def _sleep(self, time: float):
+        """Sleep for a given time but use the halt event."""
         if time > 0:
             self._halt.wait(time)
 
-    def _run(self):
+    def _run(self) -> t.Optional[bool]:
+        """In-loop execution, returns True/False if success or None if the run was aborted and shouldn't be tracked."""
         raise NotImplementedError()
 
     def _setup(self):
+        """Pre-execution when thread is starting."""
         pass
 
     def _cleanup(self):
+        """Cleanup when thread is exiting."""
         pass

@@ -85,7 +85,7 @@ class CommandAndControl:
 
     config: zr.ApplicationConfig = None
     local_sender: "erddaputil.main.main.CommandSender" = None
-    ampq_sender: "erddaputil.ampq.ampq.AmpqManager" = None
+    ampq_sender: "erddaputil.ampq.ampq.AmpqController" = None
 
     @injector.construct
     def __init__(self):

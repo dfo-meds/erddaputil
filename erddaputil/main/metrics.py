@@ -29,7 +29,7 @@ class _Metric:
         }
 
 
-class _ScriptMetric:
+class AbstractMetric:
 
     def __init__(self, metric_type, metric_parent, name, labels=None, description=""):
         self.metric_type = metric_type
@@ -42,7 +42,7 @@ class _ScriptMetric:
         self.parent.send_message(_Metric(self.metric_type, self.name, self.labels, self.description, method, kwargs))
 
 
-class _ScriptCounterMetric(_ScriptMetric):
+class _ScriptCounterMetric(AbstractMetric):
 
     def __init__(self, *args, **kwargs):
         super().__init__('counter', *args, **kwargs)
@@ -51,7 +51,7 @@ class _ScriptCounterMetric(_ScriptMetric):
         self.send_message('inc', amount=amount, exemplar=exemplar)
 
 
-class _ScriptGaugeMetric(_ScriptMetric):
+class _ScriptGaugeMetric(AbstractMetric):
 
     def __init__(self, *args, **kwargs):
         super().__init__('gauge', *args, **kwargs)
@@ -66,7 +66,7 @@ class _ScriptGaugeMetric(_ScriptMetric):
         self.send_message('set', amount=amount)
 
 
-class _ScriptSummaryMetric(_ScriptMetric):
+class _ScriptSummaryMetric(AbstractMetric):
 
     def __init__(self, *args, **kwargs):
         super().__init__('summary', *args, **kwargs)
@@ -75,7 +75,7 @@ class _ScriptSummaryMetric(_ScriptMetric):
         self.send_message('observe', value=value)
 
 
-class _ScriptHistogramMetric(_ScriptMetric):
+class _ScriptHistogramMetric(AbstractMetric):
 
     def __init__(self, *args, buckets=None, **kwargs):
         super().__init__('histogram', *args, **kwargs)
@@ -85,7 +85,7 @@ class _ScriptHistogramMetric(_ScriptMetric):
         self.send_message('observe', value=value, exemplar=exemplar, _buckets=self.buckets)
 
 
-class _ScriptInfoMetric(_ScriptMetric):
+class _ScriptInfoMetric(AbstractMetric):
 
     def __init__(self, *args, **kwargs):
         super().__init__('info', *args, **kwargs)
@@ -94,7 +94,7 @@ class _ScriptInfoMetric(_ScriptMetric):
         self.send_message('info', key=key, value=value)
 
 
-class _ScriptEnumMetric(_ScriptMetric):
+class _ScriptEnumMetric(AbstractMetric):
 
     def __init__(self, *args, **kwargs):
         super().__init__('enum', *args, **kwargs)
