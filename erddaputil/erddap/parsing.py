@@ -1,4 +1,4 @@
-"""Incomplete efforts at an ERDDAP log parser. """
+"""ERDDAP parsing """
 import enum
 import datetime
 from urllib.parse import unquote_plus
@@ -21,6 +21,7 @@ class ParserState(enum.Enum):
 
 
 class ErddapRequest:
+    """Holds ERDDAP request info"""
 
     def __init__(self,
                  line_no: int,
@@ -47,6 +48,7 @@ class ErddapRequest:
 
 
 class ErddapLogParser:
+    """Parser for log.txt"""
 
     def __init__(self):
         self.state = ParserState.NEW
@@ -280,6 +282,7 @@ class ErddapLogParser:
 
 
 class StatusState(enum.Enum):
+    """State of ErddapStatusParser"""
 
     MAIN_BLOCK = 0
     DATASET_FAIL_LIST = 1
@@ -291,6 +294,7 @@ class StatusState(enum.Enum):
 
 
 class ErddapStatusParser:
+    """Parser for status.html content"""
 
     def __init__(self):
         self.info = {}

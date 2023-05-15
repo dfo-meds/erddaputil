@@ -1,3 +1,4 @@
+"""ERDDAP Log Management tools"""
 import datetime
 import os
 import time
@@ -12,7 +13,7 @@ class ErddapLogManager(BaseThread):
 
     @injector.construct
     def __init__(self):
-        super().__init__("erddaputil.logman", 15)
+        super().__init__("erddaputil.logman")
         self.bpd = self.config.as_path(("erddaputil", "erddap", "big_parent_directory"))
         self._log_path = None
         if self.bpd is None or not self.bpd.exists():
@@ -29,8 +30,8 @@ class ErddapLogManager(BaseThread):
         self.enabled = self.config.as_bool(("erddaputil", "logman", "enabled"), default=True)
         self._last_run = None
         self.set_run_metric(
-            self.metrics.summary('erddaputil_logman_runs').labels({'result': 'success'}),
-            self.metrics.summary('erddaputil_logman_runs').labels({'result': 'failure'}),
+            self.metrics.summary('erddaputil_logman_runs', labels={'result': 'success'}),
+            self.metrics.summary('erddaputil_logman_runs', labels={'result': 'failure'}),
             'observe'
         )
 
@@ -48,7 +49,7 @@ class ErddapLogManager(BaseThread):
         cutoff = (datetime.datetime.now() - datetime.timedelta(days=self.log_retention_days)).timestamp()
         for file in os.scandir(self._log_path):
             if any(file.name.startswith(x) for x in self.log_file_prefixes) and file.stat().st_mtime < cutoff:
-                print(file.path)
+                self._log.out(f"Removing {file.path}")
                 os.unlink(file.path)
                 count += 1
         self.metrics.counter("erddaputil_logman_log_files_removed", description='Number of old log files removed').inc(count)

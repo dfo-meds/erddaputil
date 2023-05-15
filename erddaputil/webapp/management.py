@@ -58,7 +58,7 @@ def activate_dataset():
         return _map_dataset_ids(body['dataset_id'], activate_dataset)
 
 
-DATASET_DEACTIVATE = Summary('erddaputil_webapp_dataset_activation', 'Time to activate a dataset')
+DATASET_DEACTIVATE = Summary('erddaputil_webapp_dataset_deactivation', 'Time to deactivate a dataset')
 
 
 @bp.route("/datasets/deactivate", methods=["POST"])

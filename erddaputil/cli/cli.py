@@ -33,7 +33,7 @@ def handle_command_response(fn: callable):
 
 
 @base.command
-@click.argument("dataset_id", default="", help="A dataset ID or a comma-delimited list of dataset IDs to reload. Omit to reload all datasets.")
+@click.argument("dataset_id", default="")
 @click.option("--soft", "-s", "flag", flag_value=0, default=True, help="Scan for new files and update the information from the datasets file.")
 @click.option("--bad-files", "-b", "flag", flag_value=1, help="Remove and reload all bad files in addition to scanning and updating the information.")
 @click.option("--hard", "-h", "flag", flag_value=2, help="Remove the entire dataset (except the decompression cache) and rebuild it from scratch.")
@@ -50,7 +50,7 @@ def reload_dataset(dataset_id: str = "", flag: int = 0, delay: bool = True, broa
         return reload_dataset(dataset_id, flag, flush=not delay, _broadcast=broadcast)
 
 @base.command
-@click.argument("dataset_id", help="A dataset ID or a comma-delimited list of dataset IDs to activate")
+@click.argument("dataset_id")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
 @click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
 @handle_command_response
@@ -61,7 +61,7 @@ def activate_dataset(dataset_id: str, delay: bool = True, broadcast: bool = True
 
 
 @base.command
-@click.argument("dataset_id", help="A dataset ID or a comma-delimited list of dataset IDs to deactivate")
+@click.argument("dataset_id")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
 @click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
 @handle_command_response
@@ -84,7 +84,7 @@ def compile_datasets(skip: bool = True, reload_all: bool = False, delay: bool = 
 
 
 @base.command
-@click.argument("email", help="The email or a comma-delimited list of emails to block")
+@click.argument("email")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
 @click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
 @handle_command_response
@@ -95,7 +95,7 @@ def block_email(email: str, delay: bool = True, broadcast: bool = True):
 
 
 @base.command
-@click.argument("ip", help="The IP address, subnet, or a comma-delimited set of addresses and/or subnets to block")
+@click.argument("ip")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
 @click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
 @handle_command_response
@@ -106,7 +106,7 @@ def block_ip(ip: str, delay: bool = True, broadcast: bool = True):
 
 
 @base.command
-@click.argument("ip", help="The IP address, subnet, or a comma-delimited set of addresses and/or subnets to add to the unlimited allow list")
+@click.argument("ip")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
 @click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
 @handle_command_response
@@ -117,7 +117,7 @@ def allow_unlimited(ip: str, delay: bool = True, broadcast: bool = True):
 
 
 @base.command
-@click.argument("email", help="The email or a comma-delimited list of emails to unblock")
+@click.argument("email")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
 @click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
 @handle_command_response
@@ -128,7 +128,7 @@ def unblock_email(email: str, delay: bool = True, broadcast: bool = True):
 
 
 @base.command
-@click.argument("ip", help="The IP address, subnet, or a comma-delimited set of addresses and/or subnets to unblock")
+@click.argument("ip")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
 @click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
 @handle_command_response
@@ -139,7 +139,7 @@ def unblock_ip(ip: str, delay: bool = True, broadcast: bool = True):
 
 
 @base.command
-@click.argument("ip", help="The IP address, subnet, or a comma-delimited set of addresses and/or subnets to remove from the unlimited allow list")
+@click.argument("ip")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
 @click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
 @handle_command_response
@@ -150,7 +150,7 @@ def remove_unlimited(ip: str, delay: bool = True, broadcast: bool = True):
 
 
 @base.command
-@click.argument("username", help="The username to set the password for")
+@click.argument("username")
 @click.password_option(help="The password for the user.")
 @injector.inject
 def set_password(username: str, password: str, ac: AuthChecker = None):
@@ -175,7 +175,7 @@ def list_datasets():
 
 
 @base.command
-@click.argument("dataset_id", default="", help="A dataset ID or a comma-delimited list of dataset IDs to clear the cache for. Omit to clear for all datasets.")
+@click.argument("dataset_id", default="")
 @click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
 def clear_cache(dataset_id: str, broadcast: bool = True):
     """Clear the decompressed folder for ERDDAP."""

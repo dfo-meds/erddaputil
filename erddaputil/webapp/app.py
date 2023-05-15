@@ -7,8 +7,8 @@ from erddaputil.common import init_config
 
 
 def create_app():
-    app = flask.Flask(__name__)
     init_config()
+    app = flask.Flask(__name__)
     init_app(app)
     return app
 

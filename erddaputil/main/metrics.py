@@ -5,6 +5,7 @@ import zirconium as zr
 import base64
 import aiohttp
 import asyncio
+import logging
 from erddaputil.common import load_object, BaseThread
 
 
@@ -183,11 +184,13 @@ class LocalPrometheusSendThread(BaseThread):
         async with aiohttp.ClientSession() as session:
             while True:
                 if self._halt.is_set():
+                    self._log.out(f"Emptying message queue...")
                     while not self.messages.empty():
                         if not self._batch_send(session):
                             break
                     break
                 while len(self._active_tasks) < self._max_concurrent_tasks and not self.messages.empty():
+                    self._log.out(f"Queuing more messages")
                     await self._batch_send(session)
                 if self._active_tasks:
                     _, self._active_tasks = await asyncio.wait(self._active_tasks, timeout=self._wait_time, return_when=asyncio.FIRST_COMPLETED)
@@ -210,9 +213,13 @@ class ScriptMetrics:
         self._cache = {}
         self._lock = threading.RLock()
         self._sender = None
+        self._log = logging.getLogger("erddaputil.metrics")
         if self.config.is_truthy(("erddaputil", "metrics_manager")):
             self._sender = load_object(self.config.get(("erddaputil", "metrics_manager")))()
             self._sender.start()
+        else:
+            self._log.warning(f"Metric collection disabled in daemon")
+
 
     def __cleanup__(self):
         self.halt()
@@ -236,7 +243,7 @@ class ScriptMetrics:
         return self._cached_metric(_ScriptCounterMetric, name, labels=labels, description=description)
 
     def gauge(self, name: str, labels: dict = None, description: str = "") -> _ScriptGaugeMetric:
-        return self._cached_metric(_ScriptCounterMetric, name, labels=labels, description=description)
+        return self._cached_metric(_ScriptGaugeMetric, name, labels=labels, description=description)
 
     def summary(self, name: str, labels: dict = None, description: str = "") -> _ScriptSummaryMetric:
         return self._cached_metric(_ScriptSummaryMetric, name, labels=labels, description=description)

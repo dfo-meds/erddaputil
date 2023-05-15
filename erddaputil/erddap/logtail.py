@@ -1,3 +1,7 @@
+"""Log tailing
+
+We are trying to work towards extracting and processing ERDDAP logs, and this is a first step.
+"""
 import hashlib
 from erddaputil.common import BaseThread
 from graceful_shutdown import ShutdownProtection

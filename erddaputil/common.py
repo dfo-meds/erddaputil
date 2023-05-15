@@ -48,7 +48,7 @@ class BaseThread(threading.Thread):
     config: zr.ApplicationConfig = None
 
     @injector.construct
-    def __init__(self, log_name: str, loop_delay: float = 0.25, is_daemon: bool = True):
+    def __init__(self, log_name: str, loop_delay: float = 1, is_daemon: bool = True):
         super().__init__()
         self._log = logging.getLogger(log_name)
         self._halt = threading.Event()
