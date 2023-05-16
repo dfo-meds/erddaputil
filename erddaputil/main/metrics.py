@@ -186,7 +186,7 @@ class LocalPrometheusSendThread(BaseThread):
                 if self._halt.is_set():
                     self._log.out(f"Emptying message queue...")
                     while not self.messages.empty():
-                        if not self._batch_send(session):
+                        if not await self._batch_send(session):
                             break
                     break
                 while len(self._active_tasks) < self._max_concurrent_tasks and not self.messages.empty():
@@ -217,9 +217,9 @@ class ScriptMetrics:
         if self.config.is_truthy(("erddaputil", "metrics_manager")):
             self._sender = load_object(self.config.get(("erddaputil", "metrics_manager")))()
             self._sender.start()
+            self._log.out(f"Metric collection enabled in daemon")
         else:
-            self._log.warning(f"Metric collection disabled in daemon")
-
+            self._log.out(f"Metric collection disabled in daemon")
 
     def __cleanup__(self):
         self.halt()

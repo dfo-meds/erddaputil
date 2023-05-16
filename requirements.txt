@@ -1,6 +1,6 @@
-zirconium
-autoinject
-zrlog
+zirconium>=1.2.2
+autoinject>=1.3.2
+zrlog>=0.2.0
 graceful_shutdown
 click
 pyyaml

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<erddapDatasets>
+    <dataset type="EDDGridFromNcFiles" datasetID="existing_a" active="true">
+    </dataset>
+    <dataset type="EDDGridFromNcFiles" datasetID="existing_b" active="true">
+    </dataset>
+    <dataset type="EDDGridFromNcFiles" datasetID="existing_c" active="false">
+    </dataset>
+</erddapDatasets>

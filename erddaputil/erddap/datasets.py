@@ -75,7 +75,7 @@ class ErddapDatasetManager:
             raise ValueError("Datasets.d directory is missing or not configured")
         if not (self.datasets_file and self.datasets_file.parent.exists()):
             raise ValueError("The datasets.xml directory is missing or not configured properly")
-        return True
+        return self.check_can_reload()
 
     def check_datasets_exist(self):
         """Check if the datasets.xml file exists"""
@@ -83,6 +83,7 @@ class ErddapDatasetManager:
             raise ValueError("Datasets.xml not configured")
         if not self.datasets_file.exists():
             raise ValueError(f"No datasets.xml file found at {self.datasets_file}")
+        return True
 
     def check_can_reload(self):
         """Check if the configuration allows datasets to be reloaded."""
@@ -123,17 +124,18 @@ class ErddapDatasetManager:
         failures = []
         noop = []
         for ds_id in AllowBlockListFile.input_to_set(dataset_id):
-            for file in os.scandir(self.datasets_directory):
-                res = self._try_setting_active_flag(pathlib.Path(file.path), dataset_id, active_flag)
-                if res == 1:
-                    self._queue_dataset_reload(dataset_id, 0)
-                    successes.append(ds_id)
-                    break
-                elif res == 2:
-                    noop.append(ds_id)
-                    break
-            else:
-                failures.append(ds_id)
+            with os.scandir(self.datasets_directory) as files:
+                for file in files:
+                    res = self._try_setting_active_flag(pathlib.Path(file.path), dataset_id, active_flag)
+                    if res == 1:
+                        self._queue_dataset_reload(dataset_id, 0)
+                        successes.append(ds_id)
+                        break
+                    elif res == 2:
+                        noop.append(ds_id)
+                        break
+                else:
+                    failures.append(ds_id)
         if successes:
             self._queue_recompilation(immediate=flush)
         if failures:
@@ -207,6 +209,9 @@ class ErddapDatasetManager:
         config_xml = ET.parse(self.datasets_file)
         config_root = config_xml.getroot()
         for ds in config_root.iter("dataset"):
+            # Skip inactive datasets
+            if "active" in ds.attrib and ds.attrib["active"] == "false":
+                continue
             self._queue_dataset_reload(ds.attrib["datasetID"], flag)
         self._flush_datasets(flush)
 
@@ -223,6 +228,9 @@ class ErddapDatasetManager:
             raise ValueError(f"Invalid flag value: {flag}")
         self.log.info(f"Reload[{flag}] of {dataset_ids} requested")
         for ds_id in AllowBlockListFile.input_to_set(dataset_ids):
+            ds_id = ds_id.strip()
+            if not ds_id:
+                continue
             self._queue_dataset_reload(ds_id, flag)
         self._flush_datasets(flush)
 
@@ -602,8 +610,9 @@ class ErddapDatasetManager:
         ds_ids = [(k, self._datasets_to_reload[k][1]) for k in self._datasets_to_reload]
         ds_ids.sort(key=lambda x: x[1])
         auto_reload = (len(ds_ids) - self._max_pending_reloads) if self._max_pending_reloads > 0 else -1
-        for dataset_id in ds_ids:
-            if force or auto_reload > 0 or (time.monotonic() - self._datasets_to_reload[dataset_id][1]) > self._max_reload_delay:
+        now_t = time.monotonic()
+        for dataset_id, _ in ds_ids:
+            if force or auto_reload > 0 or (now_t - self._datasets_to_reload[dataset_id][1]) > self._max_reload_delay:
                 auto_reload -= 1
                 try:
                     self._reload_dataset(dataset_id, self._datasets_to_reload[dataset_id][0])
@@ -766,7 +775,15 @@ class AllowBlockListFile:
                 raise ValueError(f"Invalid IP address: {ip_address}")
             if pieces[3] != '*' and not pieces[3].isdigit():
                 raise ValueError(f"Invalid IP address: {ip_address}")
+            for p in pieces:
+                if p == "*":
+                    continue
+                if not 0 <= int(p) <= 255:
+                    raise ValueError(f"Invalid IP address: {ip_address}")
         else:
             # Test the IP address to make sure it is a valid IP address
             # raises ValueError if the address is invalid
-            ipaddress.ip_address(ip_address)
+            if "/" in ip_address:
+                ipaddress.ip_network(ip_address)
+            else:
+                ipaddress.ip_address(ip_address)

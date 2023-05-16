@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset type="EDDGridFromNcFiles" datasetID="invalid_d" active="false">
+    <hello_world>
+</dataset>
