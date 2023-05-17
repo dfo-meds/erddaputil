@@ -1,6 +1,8 @@
 from autoinject import injector
 import zirconium as zr
 import itsdangerous
+import uuid
+import zrlog
 
 
 @injector.injectable_global
@@ -26,12 +28,16 @@ class Serializer:
 class Command:
     """Represents a command being executed by the daemon."""
 
-    def __init__(self, name, *args, _broadcast: bool = True, **kwargs):
+    def __init__(self, name, *args, _broadcast: bool = True, _guid: str = None, **kwargs):
         self.name = name
         self.args = args or []
         self.kwargs = kwargs or {}
         self.allow_broadcast = _broadcast
         self.ignore_on_hosts = []
+        self.guid = _guid if _guid else str(uuid.uuid4())
+
+    def __str__(self):
+        return f"COMMAND<{self.guid};{self.name};{';'.join(self.args)};{';'.join(k + '=' + self.kwargs[k] for k in self.kwargs)}>"
 
     def ignore_host(self, hostname):
         self.ignore_on_hosts.append(str(hostname))
@@ -42,14 +48,20 @@ class Command:
             "name": self.name,
             "args": self.args,
             "kwargs": self.kwargs,
-            "ignore": self.ignore_on_hosts
+            "ignore": self.ignore_on_hosts,
+            "guid": self.guid,
         })
 
     @staticmethod
     @injector.inject
     def unserialize(message: str, _serializer: Serializer = None):
         message = _serializer.unserialize(message)
-        cmd = Command(message['name'], *message['args'], **message['kwargs'])
+        cmd = Command(
+            message['name'],
+            *message['args'],
+            _guid=message['guid'] if 'guid' in message else None,
+            **message['kwargs']
+        )
         if "ignore" in message and message["ignore"]:
             cmd.ignore_on_hosts.extend(message["ignore"])
         return cmd
@@ -58,26 +70,32 @@ class Command:
 class CommandResponse:
     """Represents a response by the command. """
 
-    def __init__(self, message, state='success'):
+    def __init__(self, message, state='success', guid=None):
         self.message = message
         self.state = state
+        self.guid = guid
 
     @injector.inject
     def serialize(self, _serializer: Serializer = None) -> str:
         return _serializer.serialize({
             "message": self.message,
             "state": self.state,
+            "guid": self.guid
         })
 
     @staticmethod
-    def from_exception(ex: Exception):
-        return CommandResponse(f"{type(ex).__name__}: {str(ex)}", "error")
+    def from_exception(ex: Exception, original_cmd: Command = None):
+        return CommandResponse(
+            f"{type(ex).__name__}: {str(ex)}",
+            "error",
+            original_cmd.guid if original_cmd else None
+        )
 
     @staticmethod
     @injector.inject
     def unserialize(message: str, _serializer: Serializer = None):
         message = _serializer.unserialize(message)
-        return CommandResponse(message['message'], message['state'])
+        return CommandResponse(message['message'], message['state'], message['guid'])
 
 
 @injector.injectable_global
@@ -91,12 +109,15 @@ class CommandAndControl:
     def __init__(self):
         self._send_to_local = self.config.as_bool(("erddaputil", "use_local_daemon"), default=True)
         self._send_to_ampq = self.config.as_bool(("erddaputil", "use_ampq_exchange"), default=False)
+        self._log = zrlog.get_logger("erddaputil.main.commands")
 
     def send_command(self, cmd: Command) -> CommandResponse:
         response = None
         if self._send_to_ampq and cmd.allow_broadcast and self.ampq_sender.is_valid:
+            self._log.info(f"Sending {cmd} to AMPQ")
             response = self.ampq_sender.send_command(cmd)
         if self._send_to_local:
+            self._log.info(f"Sending {cmd} to local daemon")
             response = self.local_sender.send_command(cmd)
         return response
 

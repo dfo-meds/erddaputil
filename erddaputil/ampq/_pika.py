@@ -25,13 +25,16 @@ class PikaHandler(AmpqHandler):
             )
             return True
         except UnroutableError:
+            self._log.exception("Error sending message via pika")
             return False
 
     def receive_until_halted(self, content_handler: callable, halt_event: threading.Event):
         """Receive messages and pass them to the handler until the given Event is set."""
+        self._log.debug("Opening AMPQ connection")
         conn = pika.BlockingConnection(parameters=pika.URLParameters(self.credentials))
         channel = conn.channel()
         if self.attempt_queue_creation:
+            self._log.debug("Creating and binding AMPQ queue")
             channel.queue_declare(self.queue_name, durable=True)
             channel.queue_bind(self.queue_name, self.exchange_name, routing_key=self.global_name)
             channel.queue_bind(self.queue_name, self.exchange_name, routing_key=self.topic_name)
@@ -40,5 +43,6 @@ class PikaHandler(AmpqHandler):
                 content_handler(body)
                 channel.basic_ack(mf.delivery_tag)
             if halt_event.is_set():
+                self._log.debug("Closing AMPQ channel")
                 channel.cancel()
                 break

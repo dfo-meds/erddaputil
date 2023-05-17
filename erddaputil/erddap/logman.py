@@ -45,11 +45,12 @@ class ErddapLogManager(BaseThread):
             return False
         if self._log_path is None or not self._log_path.exists():
             return False
+        self._log.info(f"Checking for old log files")
         count = 0
         cutoff = (datetime.datetime.now() - datetime.timedelta(days=self.log_retention_days)).timestamp()
         for file in os.scandir(self._log_path):
             if any(file.name.startswith(x) for x in self.log_file_prefixes) and file.stat().st_mtime < cutoff:
-                self._log.out(f"Removing {file.path}")
+                self._log.notice(f"Removing {file.path}")
                 os.unlink(file.path)
                 count += 1
         self.metrics.counter("erddaputil_logman_log_files_removed", description='Number of old log files removed').inc(count)

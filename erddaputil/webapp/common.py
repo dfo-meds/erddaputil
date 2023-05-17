@@ -7,9 +7,7 @@ import time
 import flask
 import base64
 import functools
-import logging
-import functools
-import logging
+import zrlog
 from prometheus_client import Summary
 from werkzeug.exceptions import HTTPException
 import timeit
@@ -56,7 +54,7 @@ def error_shield(fn):
         except HTTPException as ex:
             return {"success": False, "message": str(ex)}, ex.code
         except Exception as ex:
-            logging.getLogger("erddaputil.webapp").exception(ex)
+            zrlog.get_logger("erddaputil.webapp").exception(f"Exception during execution of {fn.__name__}")
             return {"success": False, "message": f"{type(ex).__name__}: {str(ex)}"}, 500
 
     return wrapped
@@ -69,7 +67,7 @@ class AuthChecker:
 
     @injector.construct
     def __init__(self):
-        self._log = logging.getLogger("erddaputil.webapp.auth")
+        self._log = zrlog.get_logger("erddaputil.webapp.auth")
         self.password_file = self.config.as_path(("erddaputil", "webapp", "password_file"), default=None)
         if not self.password_file:
             self._log.warning(f"Password file is not configured, authentication will not work")
@@ -98,7 +96,7 @@ class AuthChecker:
                     username, hashname, salt, iterations, phash = line.split("||", maxsplit=4)
                     self.passwords[username] = (hashname, salt, int(iterations), phash)
             self._load_time = os.path.getmtime(self.password_file)
-            self._log.info(f"{len(self.passwords)} loaded from {self.password_file}")
+            self._log.info(f"{len(self.passwords)} passwords loaded from {self.password_file}")
 
     def _save_passwords(self):
         if self.password_file:
@@ -143,11 +141,11 @@ class AuthChecker:
                 full_salt = salt + pepper
                 check_phash = hashlib.pbkdf2_hmac(hashname, password.encode("utf-8"), full_salt.encode("utf-8"), iterations)
                 if secrets.compare_digest(check_phash.hex(), phash):
-                    self._log.info(f"Access authorized for {username}")
+                    self._log.notice(f"Access authorized for {username}")
                     return True
-            self._log.warning(f"Invalid password for {username}")
+            self._log.warning(f"Access denied for {username} [bad password]")
         else:
-            self._log.warning(f"Username {username} not recognized")
+            self._log.warning(f"Access denied for {username} [no such user]")
         return False
 
     def basic_auth(self, credentials):

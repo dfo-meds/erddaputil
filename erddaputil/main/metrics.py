@@ -5,7 +5,7 @@ import zirconium as zr
 import base64
 import aiohttp
 import asyncio
-import logging
+import zrlog
 from erddaputil.common import load_object, BaseThread
 
 
@@ -110,27 +110,28 @@ class LocalPrometheusSendThread(BaseThread):
 
     @injector.construct
     def __init__(self):
-        super().__init__("erddaputil.localprom")
+        super().__init__("erddaputil.main.metrics.localprom")
         self.messages = queue.SimpleQueue()
-        self._halt = threading.Event()
-        self._wait_time = self.config.as_float(("erddaputil", "localprom", "delay_seconds"), default=0.25)
+
         host = self.config.as_str(("erddaputil", "localprom", "host"), default="localhost")
         port = self.config.as_int(("erddaputil", "localprom", "port"), default=5000)
         self._endpoint = self.config.as_str(("erddaputil", "localprom", "metrics_path"), default=f"http://{host}:{port}/push")
+        self._log.debug(f"Local prometheus send thread configured to send to {self._endpoint}")
+
         username = self.config.as_str(("erddaputil", "localprom", "username"))
         password = self.config.as_str(("erddaputil", "localprom", "password"))
         unpw = f"{username}:{password}"
         self._headers = {
             "Authorization": f"basic {base64.b64encode(unpw.encode('utf-8')).decode('ascii')}"
         }
-        self._max_concurrent_tasks = self.config.as_int(("erddaputil", "localprom", "max_tasks"), default=5)
-        self._max_messages_to_send = self.config.as_int(("erddaputil", "localprom", "batch_size"), default=10)
-        self._message_wait_time = self.config.as_float(("erddaputil", "localprom", "batch_wait_seconds"), default=1)
-        self._max_retries = self.config.as_int(("erddaputil", "localprom", "max_retries"), default=5)
-        self._retry_delay = self.config.as_float(("erddaputil", "localprom", "retry_delay_seconds"), default=15)
+        self._max_concurrent_tasks = self.config.as_int(("erddaputil", "localprom", "max_tasks"), default=10)
+        self._max_messages_to_send = self.config.as_int(("erddaputil", "localprom", "batch_size"), default=200)
+        self._message_wait_time = self.config.as_float(("erddaputil", "localprom", "batch_wait_seconds"), default=2)
+        self._max_retries = self.config.as_int(("erddaputil", "localprom", "max_retries"), default=3)
+        self._retry_delay = self.config.as_float(("erddaputil", "localprom", "retry_delay_seconds"), default=1)
         self._active_tasks = []
 
-    def send_message(self, metric: _Metric):
+    def send_message(self, metric: _Metric) -> bool:
         if self._halt.is_set():
             return False
         self.messages.put_nowait(metric)
@@ -140,67 +141,81 @@ class LocalPrometheusSendThread(BaseThread):
     def run(self):
         return asyncio.run(self._async_entry_point())
 
-    async def _handle_metrics(self, metrics: list, session):
-        json_data = {"metrics": [metric.to_dict() for metric in metrics]}
-        if self._halt.is_set():
-            self._max_retries = 1
-        retries = self._max_retries
-        retry_forever = self._max_retries == 0
-        while retry_forever or retries > 0:
-            async with session.post(self._endpoint, json=json_data, headers=self._headers) as resp:
-                info = await resp.json()
-                if not info["status"] == "success":
-                    for error in info["errors"]:
-                        self._log.error(error)
-                    if retries > 0:
-                        retries -= 1
-                    if self._halt.is_set():
-                        break
+    async def _async_entry_point(self):
+        async with aiohttp.ClientSession() as session:
+            while not self._halt.is_set():
+                # If we have room for more tasks and there are messages, queue them up until no more are here
+                while len(self._active_tasks) < self._max_concurrent_tasks and not self.messages.empty():
+                    await self._batch_send(session)
+                # If there are tasks pending, give them a chance to run
+                if self._active_tasks:
+                    await self._process_tasks(True)
+                # Otherwise, just sleep for a bit
                 else:
-                    return
-            await asyncio.sleep(self._retry_delay)
+                    await asyncio.sleep(self._loop_delay)
+            # Halt has been set, queue up the rest of the messages
+            self._log.info(f"Processing final messages...")
+            while not self.messages.empty():
+                if not await self._batch_send(session):
+                    break
+            # Wait for the tasks to be completed
+            self._log.info(f"Cleaning up {len(self._active_tasks)} tasks...")
+            while self._active_tasks:
+                await self._process_tasks(False)
+
+    async def _process_tasks(self, first_task: bool):
+        _, self._active_tasks = await asyncio.wait(
+            self._active_tasks,
+            timeout=self._loop_delay,
+            return_when=(asyncio.FIRST_COMPLETED if first_task else asyncio.ALL_COMPLETED)
+        )
+        self._active_tasks = list(self._active_tasks)
 
     async def _batch_send(self, session) -> bool:
         metrics = []
-        waited_one = False
-        # Round one
-        while len(metrics) < self._max_messages_to_send:
+        empty_queue_checks = 0
+        max_empty_checks = 2
+        while len(metrics) < self._max_messages_to_send and empty_queue_checks < max_empty_checks:
             try:
+                # Build
                 metric = self.messages.get_nowait()
                 metrics.append(metric)
-                continue
             except queue.Empty:
-                if self._message_wait_time > 0 and not waited_one:
-                    waited_one = True
+                empty_queue_checks += 1
+                if empty_queue_checks < max_empty_checks:
                     await asyncio.sleep(self._message_wait_time)
-                    continue
-                break
         if metrics:
             self._active_tasks.append(asyncio.create_task(self._handle_metrics(metrics, session)))
             return True
         return False
 
-    async def _async_entry_point(self):
-        async with aiohttp.ClientSession() as session:
-            while True:
-                if self._halt.is_set():
-                    self._log.out(f"Emptying message queue...")
-                    while not self.messages.empty():
-                        if not await self._batch_send(session):
+    async def _handle_metrics(self, metrics: list, session):
+        json_data = {"metrics": [metric.to_dict() for metric in metrics]}
+        # If we are crashing, prevent a lot of retries
+        if self._halt.is_set():
+            self._max_retries = 1
+        retries = self._max_retries
+        retry_forever = self._max_retries == 0
+        while retry_forever or retries > 0:
+            try:
+                async with session.post(self._endpoint, json=json_data, headers=self._headers) as resp:
+                    resp.raise_for_status()
+                    info = await resp.json()
+                    if not info["status"] == "success":
+                        for error in info["errors"]:
+                            self._log.warning(f"Error from web API for metrics: {error}, retries: [{retries if not retry_forever else 'inf'}]")
+                        if retries > 0:
+                            retries -= 1
+                        if self._halt.is_set():
                             break
-                    break
-                while len(self._active_tasks) < self._max_concurrent_tasks and not self.messages.empty():
-                    self._log.out(f"Queuing more messages")
-                    await self._batch_send(session)
-                if self._active_tasks:
-                    _, self._active_tasks = await asyncio.wait(self._active_tasks, timeout=self._wait_time, return_when=asyncio.FIRST_COMPLETED)
-                    self._active_tasks = list(self._active_tasks)
-                else:
-                    await asyncio.sleep(self._wait_time)
-            self._log.out(f"Cleaning up {len(self._active_tasks)} tasks...")
-            while self._active_tasks:
-                _, self._active_tasks = await asyncio.wait(self._active_tasks, timeout=self._wait_time, return_when=asyncio.ALL_COMPLETED)
-                self._active_tasks = list(self._active_tasks)
+                    else:
+                        return True
+            except Exception:
+                retries -= 1
+                self._log.exception(f"Exception while sending metrics, retries: [{retries if not retry_forever else 'inf'}]")
+                await asyncio.sleep(self._retry_delay)
+        self._log.error(f"Failure to send {len(metrics)} metrics, see logs for more details")
+        return False
 
 
 @injector.injectable_global
@@ -213,13 +228,13 @@ class ScriptMetrics:
         self._cache = {}
         self._lock = threading.RLock()
         self._sender = None
-        self._log = logging.getLogger("erddaputil.metrics")
+        self._log = zrlog.get_logger("erddaputil.metrics")
         if self.config.is_truthy(("erddaputil", "metrics_manager")):
             self._sender = load_object(self.config.get(("erddaputil", "metrics_manager")))()
             self._sender.start()
-            self._log.out(f"Metric collection enabled in daemon")
+            self._log.notice(f"Metric collection enabled in daemon")
         else:
-            self._log.out(f"Metric collection disabled in daemon")
+            self._log.notice(f"Metric collection disabled in daemon")
 
     def __cleanup__(self):
         self.halt()

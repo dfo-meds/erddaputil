@@ -3,11 +3,11 @@ from erddaputil.main.commands import Command, CommandResponse
 from autoinject import injector
 import zirconium as zr
 import functools
-import logging
+import zrlog
 import threading
-import signal
 import socket
 from erddaputil.main.metrics import ScriptMetrics
+from erddaputil.common import BaseApplication
 
 
 @injector.injectable_global
@@ -19,7 +19,7 @@ class AmpqController:
     @injector.construct
     def __init__(self):
         self.handler = None
-        self.log = logging.getLogger("erddaputil.ampq")
+        self.log = zrlog.get_logger("erddaputil.ampq")
         mode = self.config.as_str(("erddaputil", "ampq", "implementation"), default="pika")
         try:
             if mode == "pika":
@@ -31,14 +31,18 @@ class AmpqController:
             else:
                 self.log.error(f"Invalid AMQP implementation: {mode}")
         except Exception as ex:
-            self.log.exception(ex)
+            self.log.exception("Exception during AMPQ startup")
+            self.handler = None
         self.is_valid = self.handler.is_config_valid() if self.handler else False
 
     def send_command(self, cmd: Command, ignore_current_host: bool = True) -> CommandResponse:
         """Sends a command over the AMPQ channel."""
         if not self.is_valid:
-            return CommandResponse("No AMQP service configured", "error")
+            self.log.warning(f"AMPQ command send requested, but not configured")
+            return CommandResponse("No AMPQ service configured", "error")
         try:
+
+            self.log.info(f"Sending command {cmd} over AMPQ")
 
             # Ignore the current host, since we would have done this locally
             if ignore_current_host:
@@ -50,7 +54,7 @@ class AmpqController:
             return CommandResponse("AMPQ request queued", "success")
 
         except Exception as ex:
-            self.log.exception(ex)
+            self.log.exception("Error while sending command to the AMPQ channel")
             return CommandResponse.from_exception(ex)
 
     @injector.inject
@@ -63,22 +67,25 @@ class AmpqController:
     def _handle_message(self, message, csend: "erddaputil.main.main.CommandSender"):
         """Handles a message from the AMPQ stack"""
         try:
-
+            self.log.debug("Receiving message from AMPQ")
             # Extract the message
             cmd = Command.unserialize(message)
 
             # Prevent the command from being rebroadcast
             cmd.allow_broadcast = False
 
+            # Route the command, but only if we are not ignoring it because we are the one that sent it
             if self.handler.hostname not in cmd.ignore_on_hosts:
-                # Send, but only if we are not ignoring it.
+                self.log.info(f"Routing AMPQ command received: {cmd}")
                 csend.send_command(cmd)
+            else:
+                self.log.info(f"Command {cmd} ignored because ignore_on_hosts was set")
 
         except Exception as ex:
-            self.log.exception(ex)
+            self.log.exception("Error while handling message from AMPQ")
 
 
-class AmpqReceiver:
+class AmpqReceiver(BaseApplication):
     """Application that receives and forwards AMPQ messages."""
 
     manager: AmpqController = None
@@ -86,27 +93,19 @@ class AmpqReceiver:
 
     @injector.construct
     def __init__(self):
-        self.log = logging.getLogger("erddaputil.ampq")
-        self._halt = threading.Event()
-        self._break_count = 0
+        super().__init__("erddaputil.ampq.app")
 
-    def sig_handle(self, a, b):
-        """Handle signals."""
-        self._halt.set()
-        self._break_count += 1
-        if self._break_count >= 3:
-            raise KeyboardInterrupt()
-
-    def run_forever(self):
-        """Run the application forever."""
+    def _startup(self):
         if not self.manager.is_valid:
             raise ValueError("Configuration is invalid")
-        signal.signal(signal.SIGINT, self.sig_handle)
-        if hasattr(signal, "SIGTERM"):
-            signal.signal(signal.SIGTERM, self.sig_handle)
-        if hasattr(signal, "SIGBREAK"):
-            signal.signal(signal.SIGBREAK, self.sig_handle)
+        super()._startup()
+
+    def run(self):
+        """Run the application forever."""
+        self._log.notice(f"Processing AMPQ messages")
         self.manager.receive_until_halted(self._halt)
+
+    def _shutdown(self):
         self.metrics.halt()
 
 
@@ -124,7 +123,7 @@ class AmpqHandler:
         self.global_name = "erddap.global"
         if self.hostname is None:
             self.hostname = socket.gethostname()
-        self._log = logging.getLogger("erddaputil.ampq")
+        self._log = zrlog.get_logger("erddaputil.ampq")
 
     def is_config_valid(self) -> bool:
         """Check if the configuration is valid."""

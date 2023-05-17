@@ -6,6 +6,7 @@ from select import select
 from erddaputil.common import BaseThread
 from erddaputil.main.commands import Command, CommandResponse, CommandRegistry
 import time
+import zrlog
 
 DEFAULT_PORT = 9172
 DEFAULT_HOST = "127.0.0.1"
@@ -52,8 +53,10 @@ class CommandSender:
     def __init__(self):
         self._host = self.config.as_str(("erddaputil", "daemon", "host"), default=DEFAULT_HOST)
         self._port = self.config.as_int(("erddaputil", "daemon", "port"), default=DEFAULT_PORT)
+        self._log = zrlog.get_logger("erddaputil.main")
 
     def send_command(self, cmd: Command) -> CommandResponse:
+        self._log.debug(f"Connecting to daemon on {self._host}:{self._port} to send {cmd}")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.connect((self._host, self._port))
             send_with_end(sock, cmd.serialize().encode("utf-8"))
@@ -67,7 +70,7 @@ class CommandReceiver(BaseThread):
 
     @injector.construct
     def __init__(self):
-        super().__init__("erddaputil.receiver", 0)
+        super().__init__("erddaputil.main.receiver", 0)
         self._host = self.config.as_str(("erddaputil", "service", "host"), default=DEFAULT_HOST)
         self._port = self.config.as_int(("erddaputil", "service", "port"), default=DEFAULT_PORT)
         self._server = None
@@ -84,30 +87,34 @@ class CommandReceiver(BaseThread):
         ready, _, _ = select([self._server], [], [], self._listen_block)
         if ready:
             clientsocket, address = self._server.accept()
+            self._log.info(f"Accepted connection from {address}")
             try:
                 send_with_end(clientsocket, self.handle(address, recv_with_end(clientsocket)))
             except SocketTimeout:
-                self._log.error("Client connection timed out")
+                self._log.exception("Client connection timed out")
             clientsocket.close()
         self.reg.tidy()
 
     def handle(self, address, raw_data: bytes) -> bytes:
         response = None
+        cmd = None
         try:
             cmd = Command.unserialize(raw_data.decode("utf-8", errors="replace"))
+            self._log.debug(f"Received command {cmd} from {address}")
             response = self.reg.route_command(cmd)
             if response is None or response is True:
-                response = CommandResponse("success")
+                response = CommandResponse("success", guid=cmd.guid)
             elif response is False:
-                response = CommandResponse("failure", "error")
+                response = CommandResponse("failure", "error", guid=cmd.guid)
             elif not isinstance(response, CommandResponse):
-                response = CommandResponse(str(response))
+                response = CommandResponse(str(response), guid=cmd.guid)
         except Exception as ex:
             self._log.exception(ex)
-            response = CommandResponse.from_exception(ex)
+            response = CommandResponse.from_exception(ex, original_cmd=cmd)
         return response.serialize().encode("utf-8", errors="replace")
 
     def _cleanup(self):
+        self._log.info(f"Shutting down")
         if self._server:
             self._server.close()
             self._server = None

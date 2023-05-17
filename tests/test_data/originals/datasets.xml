@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <erddapDatasets>
+    <ipAddressUnlimited>11.0.0.0</ipAddressUnlimited>
+    <subscriptionEmailBlacklist>foo@example.com</subscriptionEmailBlacklist>
+    <requestBlacklist>12.0.0.0</requestBlacklist>
     <dataset type="EDDGridFromNcFiles" datasetID="existing_a" active="true">
     </dataset>
     <dataset type="EDDGridFromNcFiles" datasetID="existing_b" active="true">

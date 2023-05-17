@@ -3,7 +3,7 @@ from prometheus_client import Counter, Gauge, Histogram, Summary, Enum, Info
 from autoinject import injector
 from threading import RLock
 from .common import require_login, time_with_errors
-import logging
+import zrlog
 
 bp = flask.Blueprint("metrics", __name__)
 
@@ -30,6 +30,7 @@ class WebCollectedMetrics:
     def __init__(self):
         self._metrics = {}
         self._lock = RLock()
+        self._log = zrlog.get_logger("erddaputil.webapp.metrics")
 
     def handle_request(self, metric_type: str, metric_name: str, labels: dict, description: str, method: str, arguments: dict):
         metric_type = metric_type.lower()
@@ -82,7 +83,7 @@ def handle_metrics(wc_metrics: WebCollectedMetrics = None):
                 wc_metrics.handle_request(**json_metric)
                 PROM_METRICS.labels(result="success").inc()
             except Exception as ex:
-                logging.getLogger("erddaputil.webapp.metrics").exception(ex)
+                zrlog.get_logger("erddaputil.webapp.metrics").exception(ex)
                 errors.append(str(ex))
                 result = "error"
                 PROM_METRICS.labels(result="error").inc()
@@ -91,7 +92,7 @@ def handle_metrics(wc_metrics: WebCollectedMetrics = None):
             wc_metrics.handle_request(**flask.request.json)
             PROM_METRICS.labels(result="success").inc()
         except Exception as ex:
-            logging.getLogger("erddaputil.webapp.metrics").exception(ex)
+            zrlog.get_logger("erddaputil.webapp.metrics").exception(ex)
             errors.append(str(ex))
             result = "error"
             PROM_METRICS.labels(result="error").inc()

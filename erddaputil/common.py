@@ -2,13 +2,13 @@
 import threading
 from autoinject import injector
 import zirconium as zr
-import logging
+import zrlog
 import pathlib
 import os
-import zrlog
 import importlib
 import timeit
 import typing as t
+import signal
 
 ROOT = pathlib.Path(__file__).absolute().parent
 
@@ -30,6 +30,10 @@ def _config(app: zr.ApplicationConfig):
 def init_config():
     """Initialize the logging. """
     zrlog.init_logging()
+    zr.print_config(obfuscate_keys=[
+        ("erddaputil", "secret_key"),
+        ("erddaputil", "localprom", "password"),
+    ])
 
 
 def load_object(obj_name: str) -> t.Any:
@@ -42,6 +46,52 @@ def load_object(obj_name: str) -> t.Any:
     return getattr(mod, specific_cls_name)
 
 
+class BaseApplication:
+
+    def __init__(self, log_name):
+        init_config()
+        self._log = zrlog.get_logger(log_name)
+        self._halt = threading.Event()
+        self._break_count = 0
+
+    def sig_handle(self, sig_num, frame):
+        """Handle signals."""
+        self.log.info(f"Signal {sig_num} caught, halting")
+        self._halt.set()
+        self._break_count += 1
+        if self._break_count >= 3:
+            self.log.critical(f"Program halting unexpectedly")
+            raise KeyboardInterrupt()
+
+    def _register_halt_signal(self, sig_name):
+        if hasattr(signal, sig_name):
+            signal.signal(getattr(signal, sig_name), self.sig_handle)
+
+    def _startup(self):
+        self._register_halt_signal("SIGINT")
+        self._register_halt_signal("SIGTERM")
+        self._register_halt_signal("SIGBREAK")
+        self._register_halt_signal("SIGQUIT")
+
+    def _shutdown(self):
+        pass
+
+    def run_forever(self):
+        self._log.notice("Starting")
+        try:
+            self._startup()
+            while not self._halt.is_set():
+                self.run()
+        except Exception:
+            self._log.exception("Error during execution")
+        finally:
+            self._log.notice("Shutting down")
+            self._shutdown()
+
+    def run(self):
+        self._halt.wait(0.5)
+
+
 class BaseThread(threading.Thread):
     """Provides common tools for threads that get run from a master controller."""
 
@@ -50,7 +100,7 @@ class BaseThread(threading.Thread):
     @injector.construct
     def __init__(self, log_name: str, loop_delay: float = 1, is_daemon: bool = True):
         super().__init__()
-        self._log = logging.getLogger(log_name)
+        self._log = zrlog.get_logger(log_name)
         self._halt = threading.Event()
         self._loop_delay = loop_delay
         self.daemon = is_daemon

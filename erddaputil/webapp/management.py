@@ -6,7 +6,6 @@ from prometheus_client import Summary
 bp = flask.Blueprint("management", __name__)
 
 
-
 def _map_dataset_ids(ds_id_list, cb, *args, **kwargs):
     messages = {}
     has_errors = False

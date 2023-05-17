@@ -21,12 +21,13 @@ class AzureServiceBusHandler(AmpqHandler):
                     sender.send_messages(message)
                     return True
         except sbe.ServiceBusError as ex:
-            self._log.exception(ex)
+            self._log.exception("Error sending message to AzureServiceBus")
             return False
 
     def receive_until_halted(self, content_handler: callable, halt_event: threading.Event):
         """Receive messages and pass them to the handler until the given Event is set."""
         if self.attempt_queue_creation:
+            self._log.debug("Attempting to create ServiceBus subscription and rules")
             self._create_subscription()
         with sb.ServiceBusClient.from_connection_string(self.credentials) as client:
             with client.get_subscription_receiver(self.exchange_name, self.queue_name) as receiver:

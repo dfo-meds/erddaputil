@@ -1,7 +1,7 @@
 """Tools for managing ERDDAP"""
 from autoinject import injector
 import zirconium as zr
-import logging
+import zrlog
 import time
 import xml.etree.ElementTree as ET
 from erddaputil.main.metrics import ScriptMetrics
@@ -33,7 +33,7 @@ class ErddapDatasetManager:
     @injector.construct
     def __init__(self):
         super().__init__()
-        self.log = logging.getLogger("erddaputil.datasets")
+        self.log = zrlog.get_logger("erddaputil.erddap.datasets")
         self.erddap_url = self.config.as_str(("erddaputil", "erddap", "base_url"), default=None)
         self.bpd = self.config.as_path(("erddaputil", "erddap", "big_parent_directory"))
         self.datasets_template_file = self.config.as_path(("erddaputil", "erddap", 'datasets_xml_template'), default=None)
@@ -57,10 +57,13 @@ class ErddapDatasetManager:
         if self.bpd:
             if self._email_block_list_file is None:
                 self._email_block_list_file = self.bpd / ".email_block_list.txt"
+                self.log.info(f"Using default location for email block list file [{self._email_block_list_file}]")
             if self._ip_block_list_file is None:
                 self._ip_block_list_file = self.bpd / ".ip_block_list.txt"
+                self.log.info(f"Using default location for IP block list file [{self._ip_block_list_file}]")
             if self._unlimited_allow_list_file is None:
                 self._unlimited_allow_list_file = self.bpd / ".unlimited_allow_list.txt"
+                self.log.info(f"Using default location for allow unlimited list file [{self._unlimited_allow_list_file}]")
         self._email_block_list = AllowBlockListFile(self._email_block_list_file)
         self._ip_block_list = AllowBlockListFile(self._ip_block_list_file)
         self._unlimited_allow_list = AllowBlockListFile(self._unlimited_allow_list_file)
@@ -102,7 +105,7 @@ class ErddapDatasetManager:
     def get_status_page(self):
         """Retrieve the status.html page contents."""
         self.check_can_http()
-        self.log.info(f"Retrieving ERDDAP's status.html page")
+        self.log.info(f"Retrieving ERDDAP status.html page from [{self.erddap_url}]")
         base = self.erddap_url
         if base.endswith("/"):
             base += "status.html"
@@ -119,7 +122,7 @@ class ErddapDatasetManager:
     def set_active_flag(self, dataset_id: STR_OR_ITER, active_flag: bool, flush: bool = False):
         """Set an ERDDAP dataset's active flag to true or false"""
         self.check_can_compile()
-        self.log.info(f"Setting active flag on {dataset_id} to {active_flag}")
+        self.log.info(f"Setting active flag [dataset_id={dataset_id}; flag={active_flag}")
         successes = []
         failures = []
         noop = []
@@ -137,28 +140,31 @@ class ErddapDatasetManager:
                 else:
                     failures.append(ds_id)
         if successes:
+            self.log.info(f"Flags successfully set on datasets [{','.join(successes)}]")
             self._queue_recompilation(immediate=flush)
+        if noop:
+            self.log.info(f"Flags not updated for datasets [{','.join(noop)}]")
         if failures:
             raise ValueError(f"Failed to find dataset(s): {','.join(failures)}")
 
     def update_email_block_list(self, email_address: STR_OR_ITER, block: bool, flush: bool = False):
         """Block or unblock an email address from subscriptions"""
         self.check_can_compile()
-        self.log.info(f"Updating email block list")
+        self.log.info(f"Updating email block list [emails={email_address}; is_blocked={block}]")
         if self._email_block_list.append_or_remove(email_address, block, 'email'):
             self.compile_datasets(False, False, flush)
 
     def update_ip_block_list(self, ip_address: STR_OR_ITER, block: bool = True, flush: bool = False):
         """Block or unblock an IP address"""
         self.check_can_compile()
-        self.log.info("Updating IP block list")
+        self.log.info(f"Updating IP block list [ips={ip_address}; is_blocked={block}]")
         if self._ip_block_list.append_or_remove(ip_address, block, 'ip'):
             self.compile_datasets(False, False, flush)
 
     def update_allow_unlimited_list(self, ip_address: STR_OR_ITER, allow: bool = True, flush: bool = False):
         """Add or remove an IP address from the unlimited allow list"""
         self.check_can_compile()
-        self.log.info("Updating unlimited allow list")
+        self.log.info(f"Updating unlimited allow list [ips={ip_address}; is_allowed={allow}]")
         if self._unlimited_allow_list.append_or_remove(ip_address, allow, 'ip'):
             self.compile_datasets(False, False, flush)
 
@@ -175,6 +181,7 @@ class ErddapDatasetManager:
     def clear_erddap_cache(self, dataset_id: t.Optional[STR_OR_ITER] = None):
         """Remove the cache and decompressed folders (optionally for a given dataset)"""
         self.check_can_reload()
+        self.log.info(f"Clearing ERDDAP's cached data files [datasets={dataset_id if dataset_id else '__ALL__'}]")
         initial_work = []
         # Caching not working well right now
         if dataset_id:
@@ -196,9 +203,10 @@ class ErddapDatasetManager:
             if next_rem.is_symlink():
                 continue
             elif next_rem.is_dir():
+                self.log.debug(f"Stepping in to directory {next_rem.path}")
                 to_remove.extend(file for file in os.scandir(next_rem.path) if not file.is_symlink())
             else:
-                self.log.out(f"Removing {next_rem.path}")
+                self.log.debug(f"Removing ERDDAP cache file [{next_rem.path}]")
                 os.unlink(next_rem.path)
 
     def reload_all_datasets(self, flag: int = 0, flush: bool = False):
@@ -211,6 +219,7 @@ class ErddapDatasetManager:
         for ds in config_root.iter("dataset"):
             # Skip inactive datasets
             if "active" in ds.attrib and ds.attrib["active"] == "false":
+                self.log.debug(f"Skipping reload of dataset [{ds.attrib['datasetID']}] because active=false")
                 continue
             self._queue_dataset_reload(ds.attrib["datasetID"], flag)
         self._flush_datasets(flush)
@@ -236,6 +245,8 @@ class ErddapDatasetManager:
 
     def flush(self, force: bool = False):
         """Ensure all changes are flushed to disk"""
+        if force:
+            self.log.info(f"Flush[{1 if force else 0}] requested")
         self._flush_recompilation(force)
         self._flush_datasets(force)
 
@@ -248,12 +259,12 @@ class ErddapDatasetManager:
             new_value = "true" if active_flag else "false"
             if str(config_root.attrib["active"]) == new_value:
                 return 2
-            self.log.out(f"Setting {dataset_id} to {new_value} in {file_path}")
+            self.log.notice(f"Setting {dataset_id} to {new_value} in {file_path}")
             config_root.attrib["active"] = new_value
             config_xml.write(file_path)
             return 1
         except Exception as ex:
-            self.log.exception(ex)
+            self.log.exception(f"An error occurred parsing {file_path}")
             return 0
 
     def _queue_dataset_reload(self, dataset_id: str, flag: int):
@@ -280,18 +291,20 @@ class ErddapDatasetManager:
             flag_file.parent.mkdir()
         with open(flag_file, "w") as h:
             h.write("1")
-        self.log.out(f"{dataset_id} reload[{flag}] set")
+        self.log.notice(f"{dataset_id} reload[{flag}] set")
 
     def _queue_recompilation(self, skip_errored_datasets: bool = None, reload_all_datasets: bool = None, immediate: bool = False):
-        self.log.debug(f"Dataset recompiliation queued")
         if skip_errored_datasets is None:
             skip_errored_datasets = self._skip_errored_datasets
         if self._compilation_requested is None:
+            self.log.debug(f"Dataset recompiliation queued")
             self._compilation_requested = [skip_errored_datasets, reload_all_datasets, time.monotonic()]
         else:
             if skip_errored_datasets is False and self._compilation_requested[0]:
+                self.log.debug(f"Skip errors flag for dataset recompilation upgraded to False")
                 self._compilation_requested[0] = False
             if reload_all_datasets is True and not self._compilation_requested[1]:
+                self.log.debug(f"Reload all datasets for dataset recompilation upgraded to True")
                 self._compilation_requested[1] = True
             self._compilation_requested[2] = time.monotonic()
         if immediate:
@@ -299,15 +312,17 @@ class ErddapDatasetManager:
 
     def _do_recompilation(self, skip_errored_datasets: bool, reload_all_datasets: bool):
         try:
+            self.log.info(f"Dataset recompilation started")
             # Load the template file
             datasets_xml = ET.parse(self.datasets_template_file)
             datasets_root = datasets_xml.getroot()
 
             # Track useful information here
-            in_template = {ds.attrib["datasetID"]: [ds, self.datasets_template] for ds in datasets_root.iter("dataset")}
+            in_template = {ds.attrib["datasetID"]: [ds, self.datasets_template_file] for ds in datasets_root.iter("dataset")}
+            self.log.debug(f"{len(in_template)} datasets loaded from datasets.xml template file")
 
             # Compile the datasets from datasets.d
-            self._compile_datasets(datasets_root, in_template)
+            self._compile_datasets(datasets_root, in_template, skip_errored_datasets)
 
             # Compile the block and allow lists
             self._compile_block_allow_lists(datasets_root)
@@ -332,19 +347,20 @@ class ErddapDatasetManager:
             # Cleanup the backup files
             self._cleanup_backup_files()
 
-            self.log.out(f"Dataset recompilation completed")
+            self.log.info(f"Dataset recompilation completed successfully")
 
         except Exception as ex:
-            self.log.exception(ex)
+            self.log.exception(f"Dataset recompilation completed with errors")
 
     def _cleanup_backup_files(self):
         """Cleanup backup files as needed"""
+        self.log.info("Cleaning up backup files")
         gate = (datetime.datetime.now() - datetime.timedelta(days=self._backup_retention_days)).timestamp()
         total_count = 0
         if self.backup_directory and self.backup_directory.exists():
             for backup in os.scandir(self.backup_directory):
                 if backup.stat().st_mtime < gate:
-                    self.log.info(f"Removing {backup.path}")
+                    self.log.debug(f"Removing {backup.path}")
                     pathlib.Path(backup.path).unlink()
                     total_count += 1
 
@@ -361,6 +377,7 @@ class ErddapDatasetManager:
             if ds_id in original_dataset_hashes:
                 # If the entry is in the previous file and the entry has changed, do a hard reload
                 if original_dataset_hashes[ds_id] != updated_hash:
+                    self.log.info(f"Dataset {ds_id} has changed from previous version of dataset.xml")
                     self._queue_dataset_reload(ds_id, 2)
                     reload_found = True
 
@@ -422,42 +439,48 @@ class ErddapDatasetManager:
             while backup_file.exists():
                 n += 1
                 backup_file = self.backup_directory / f"datasets.{datetime.datetime.now().strftime('%Y%m%d%H%M')}.{n}.xml"
+            self.log.info(f"Backing up datasets.xml to {backup_file}")
             shutil.copy2(self.datasets_file, backup_file)
         else:
             self.log.warning(f"Backups not configured, skipping backup process")
 
     def _load_original_hashes(self) -> dict:
         """Load the original hashes from the original XML document"""
+        self.log.info("Loading original datasets from datasets.xml")
         try:
             return {
                 ds.attrib["datasetID"]: self._hash_xml_element(ds)
                 for ds in ET.parse(self.datasets_file).getroot().iter("dataset")
             }
-        except ET.ParseError:
-            pass
+        except ET.ParseError as ex:
+            self.log.exception("An error occurred while parsing the existing datasets.xml file")
 
-    def _compile_datasets(self, datasets_root, in_template: dict):
+    def _compile_datasets(self, datasets_root, in_template: dict, skip_errored_datasets: bool = False):
         """Compile the datasets into the new dataset XML element"""
-        for ds_id, ds_root, file_path in self._find_datasets():
+        self.log.info("Extracting dataset definitions from datasets.d")
+        for ds_id, ds_root, file_path in self._find_datasets(skip_errored_datasets):
             if ds_id in in_template:
-                self.log.warning(f"Overwriting definition of {ds_id} defined in {in_template[ds_id][1]}")
+                self.log.warning(f"Overwriting definition of {ds_id} originally defined in {in_template[ds_id][1]}")
                 datasets_root.remove(in_template[ds_id][0])
+            else:
+                self.log.debug(f"Found {ds_id} in {file_path}")
             datasets_root.append(ds_root)
             in_template[ds_id] = [ds_root, file_path]
 
     def _find_datasets(self, skip_errored_datasets: bool = False):
         """Find all datasets"""
-        for file in os.scandir(self.datasets_directory):
-            try:
-                config_xml = ET.parse(file.path)
-                config_root = config_xml.getroot()
-                ds_id = config_root.attrib["datasetID"]
-                yield ds_id, config_root, file.path
-            except Exception as ex:
-                if not skip_errored_datasets:
-                    raise ex
-                else:
-                    self.log.exception(ex)
+        with os.scandir(self.datasets_directory) as files:
+            for file in files:
+                try:
+                    config_xml = ET.parse(file.path)
+                    config_root = config_xml.getroot()
+                    ds_id = config_root.attrib["datasetID"]
+                    yield ds_id, config_root, file.path
+                except Exception as ex:
+                    if not skip_errored_datasets:
+                        raise ex
+                    else:
+                        self.log.exception(f"Error parsing {file.path}, skipping")
 
     def _hash_xml_element(self, element) -> str:
         """Generate a stable hash of an XML element"""
@@ -508,7 +531,7 @@ class ErddapDatasetManager:
         # Expand ERDDAP's asterisk ranges for unlimitedIP if it was used (probably not a good practice)
         pieces = ip.split(".")
         if pieces[0] == "*" or pieces[1] == "*" or (pieces[3] == "*" and not pieces[2] == "*"):
-            self.log.warning(f"Bad format for ERDDAP range: {ip}")
+            self.log.warning(f"Bad format for ERDDAP range [{ip}], skipping")
         elif pieces[2] != "*" and pieces[3] == "*":
             for i in range(0, 256):
                 yield f"{pieces[0]}.{pieces[1]}.{pieces[2]}.{i}"
@@ -553,6 +576,7 @@ class ErddapDatasetManager:
 
     def _compile_block_allow_lists(self, datasets_root):
         """Compile all of the allow and block lists onto the dataset root"""
+        self.log.info("Compiling control lists for ERDDAP")
         ip_blocks = set()
         ip_element = None
         email_blocks = set()
@@ -564,34 +588,42 @@ class ErddapDatasetManager:
             if a1.text:
                 unlimited_allow.update(x.strip("\r\n\t ").lower() for x in a1.text.split(","))
             unlimited_element = a1
+            self.log.debug(f"Original ipAddressUnlimited tag loaded from datasets.xml with {len(unlimited_allow)} unique entries")
         for a2 in datasets_root.iter("subscriptionEmailBlacklist"):
             if a2.text:
                 email_blocks.update(x.strip("\r\n\t ").lower() for x in a2.text.split(","))
             email_element = a2
+            self.log.debug(f"Original subscriptionEmailBlacklist tag loaded from datasets.xml with {len(email_blocks)} unique entries")
         for a3 in datasets_root.iter("requestBlacklist"):
             if a3.text:
                 ip_blocks.update(x.strip("\r\n\t ").lower() for x in a3.text.split(","))
             ip_element = a3
+            self.log.debug(f"Original requestBlacklist tag loaded from datasets.xml with {len(ip_blocks)} unique entries")
+
+        # Update with read lists
         ip_blocks.update(self._ip_block_list.read_all())
         email_blocks.update(self._email_block_list.read_all())
         unlimited_allow.update(self._unlimited_allow_list.read_all())
 
-        if unlimited_element is None:
-            unlimited_element = ET.Element("ipAddressUnlimited")
-            datasets_root.insert(0, unlimited_element)
-        if email_element is None:
-            email_element = ET.Element("subscriptionEmailBlacklist")
-            datasets_root.insert(0, email_element)
-        if ip_element is None:
-            ip_element = ET.Element("requestBlacklist")
-            datasets_root.insert(0, ip_element)
-
         if unlimited_allow:
+            if unlimited_element is None:
+                unlimited_element = ET.Element("ipAddressUnlimited")
+                datasets_root.insert(0, unlimited_element)
+            self.log.debug(f"Unlimited ip address count: {len(unlimited_allow)}")
             unlimited_element.text = ",".join(self._expand_ip_addresses(unlimited_allow, False))
+
         if ip_blocks:
+            if email_element is None:
+                email_element = ET.Element("subscriptionEmailBlacklist")
+                datasets_root.insert(0, email_element)
             ip_element.text = ",".join(self._expand_ip_addresses(ip_blocks, True))
+            self.log.debug(f"Blocked ip address count: {len(ip_blocks)}")
         if email_blocks:
+            if ip_element is None:
+                ip_element = ET.Element("requestBlacklist")
+                datasets_root.insert(0, ip_element)
             email_element.text = ",".join(e for e in email_blocks if e)
+            self.log.debug(f"Blocked email count: {len(email_blocks)}")
 
     def _flush_recompilation(self, force: bool = False):
         """Flush the recompilation if necessary"""
@@ -600,8 +632,8 @@ class ErddapDatasetManager:
         if force or (time.monotonic() - self._compilation_requested[2] > self._max_recompilation_delay):
             try:
                 self._do_recompilation(self._compilation_requested[0], self._compilation_requested[1])
-            except Exception as ex:
-                self.log.exception(ex)
+            except Exception:
+                self.log.exception("Error during dataset recompilation")
             finally:
                 self._compilation_requested = None
 
@@ -617,7 +649,7 @@ class ErddapDatasetManager:
                 try:
                     self._reload_dataset(dataset_id, self._datasets_to_reload[dataset_id][0])
                 except Exception as ex:
-                    self.log.exception(ex)
+                    self.log.exception("Error during dataset reloading")
                 finally:
                     del self._datasets_to_reload[dataset_id]
 
@@ -638,7 +670,7 @@ class AllowBlockListFile:
         self.file_entries = None
         self._mtime_at_load = None
         self._entry_cache = None
-        self.log = logging.getLogger("erddaputil.erddap")
+        self.log = zrlog.get_logger("erddaputil.erddap.datasets")
 
     def check_config(self) -> bool:
         """Check if the configuration is valid"""
@@ -663,12 +695,17 @@ class AllowBlockListFile:
     def _check_cache_reload(self) -> bool:
         """Check if the cache needs reloading"""
         if self._entry_cache is None:
+            self.log.debug(f"Cache for {self.file_path} is empty, reloading")
             return True
         if self._mtime_at_load is None:
+            self.log.debug(f"Mtime is not set for {self.file_path}, reloading")
             return True
         if self.file_path is None or not self.file_path.exists():
             return False
-        return os.stat(self.file_path).st_mtime > self._mtime_at_load
+        if os.stat(self.file_path).st_mtime > self._mtime_at_load:
+            self.log.debug(f"Control file has been modified since last load, reloading")
+            return True
+        return False
 
     def write_all(self, lst: t.Iterable):
         """Write all items in the given lst to the file"""
@@ -709,7 +746,7 @@ class AllowBlockListFile:
         for entry in entries:
             entry = entry.lower()
             if entry not in lst:
-                self.log.out(f"Adding {entry} to {self.file_path}")
+                self.log.debug(f"Adding {entry} to control list {self.file_path}")
                 lst.add(entry)
                 lst_changed = True
         if lst_changed:
@@ -725,7 +762,7 @@ class AllowBlockListFile:
         for entry in entries:
             entry = entry.lower()
             if entry in lst:
-                self.log.out(f"Removing {entry} from {self.file_path}")
+                self.log.debug(f"Removing {entry} from control list {self.file_path}")
                 lst.remove(entry)
                 lst_changed = True
         if lst_changed:
@@ -747,11 +784,11 @@ class AllowBlockListFile:
 
     def _validate_email(self, email_address: str):
         """Validate an Email address for ERDDAP"""
-        if email_address.count("@") != 1:
+        if email_address.count("@") < 1:
             raise ValueError(f"Invalid email address: {email_address}")
-        if email_address[0] == "@":
+        if email_address[0] == "@" or email_address[-1] == "@":
             raise ValueError(f"Invalid email address: {email_address}")
-        if "." not in email_address[email_address.find("@"):]:
+        if "." not in email_address[email_address.rfind("@"):]:
             raise ValueError(f"Invalid email address: {email_address}")
         if "," in email_address:
             raise ValueError(f"ERDDAP does not allow commas in email addresses: {email_address}")
@@ -767,19 +804,13 @@ class AllowBlockListFile:
             pieces = ip_address.split('.')
             if len(pieces) != 4:
                 raise ValueError(f"Invalid IP address: {ip_address}")
-            if not (pieces[0].isdigit() and pieces[1].isdigit()):
-                raise ValueError(f"Invalid IP address: {ip_address}")
+            for idx, p in enumerate(pieces):
+                if p == "*" and idx > 1:
+                    continue
+                if not (p.isdigit() and (0 <= int(p) <= 255)):
+                    raise ValueError(f"Invalid IP address: {ip_address}")
             if pieces[2] == '*' and not pieces[3] == '*':
                 raise ValueError(f"Invalid IP address: {ip_address}")
-            if pieces[2] != '*' and not pieces[2].isdigit():
-                raise ValueError(f"Invalid IP address: {ip_address}")
-            if pieces[3] != '*' and not pieces[3].isdigit():
-                raise ValueError(f"Invalid IP address: {ip_address}")
-            for p in pieces:
-                if p == "*":
-                    continue
-                if not 0 <= int(p) <= 255:
-                    raise ValueError(f"Invalid IP address: {ip_address}")
         else:
             # Test the IP address to make sure it is a valid IP address
             # raises ValueError if the address is invalid
