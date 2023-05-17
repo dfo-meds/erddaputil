@@ -16,10 +16,10 @@ ENV ERDDAPUTIL_CONFIG_PATH=/erddap_util/docker_config;/erddap_util/config
 
 RUN pip install --upgrade pip
 
-COPY docker/requirements.txt requirements-docker.txt
+COPY requirements/docker-requirements.txt requirements-docker.txt
 RUN pip install -r requirements-docker.txt
 
-COPY requirements.txt requirements.txt
+COPY requirements/requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 
 COPY docker/start.sh start.sh

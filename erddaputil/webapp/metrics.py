@@ -75,6 +75,7 @@ class WebCollectedMetrics:
 @require_login
 @injector.inject
 def handle_metrics(wc_metrics: WebCollectedMetrics = None):
+    """Endpoint for metric collection"""
     errors = []
     result = "success"
     if "metrics" in flask.request.json:
