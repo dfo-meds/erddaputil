@@ -24,45 +24,6 @@ secret_key = ""
 metrics_manager = "erddaputil.main.metrics.LocalPrometheusSendThread"
 
 
-[erddaputil.localprom]
-## Use these settings to specify how to connect to our custom
-## pushgateway-esque tool.
-
-## Host where our custom pushgateway lives
-host = "localhost"
-
-## Port we can connect to the pushgateway on
-port = 5000
-
-## Alternatively, specify the path to the endpoint here
-## (defaults to http://HOST:PORT/push)
-# metrics_path = ""
-
-## Username for Basic auth
-username = ""
-
-## Password for Basic auth
-password = ""
-
-## Maximum number of simultaneous push tasks
-# max_tasks = 5
-
-## Maximum number of metric changes to push in one batch
-# batch_size = 10
-
-## Maximum number of seconds to wait for more metric changes
-# batch_wait_seconds = 1
-
-## Maximum number of times to retry pushing the metrics
-# max_retries = 5
-
-## Delay in between retries
-# retry_delay_seconds = 15
-
-## Delay in checking for new messages (sleep time)
-# delay_seconds = 0.25
-
-
 [erddaputil.erddap]
 ## Enter the path to your ERDDAP bigParentDirectory. If left blank, dataset reloads cannot be done.
 big_parent_directory = ""
@@ -76,9 +37,6 @@ datasets_d = ""
 
 ## Enter the path to your datasets.xml file. If left blank, certain operations are not available.
 datasets_xml = ""
-
-## Enter the path to store backups of the datasets.xml file or leave blank to not have backups
-backups = ""
 
 ## Enter the path to ERDDAP's home page (e.g. http://localhost:8080/erddap/)
 base_url = ""
@@ -102,6 +60,9 @@ base_url = ""
 ## If set to false, a poorly formed XML document will cause the recompile process to abort.
 ## Otherwise, the file is simply omitted and a warning emitted.
 # skip_misconfigured_datasets = true
+
+## Enter the path to store backups of the datasets.xml file or leave blank to not have backups
+backups = ""
 
 ## Number of days to keep the backups
 # backup_retention_days = 30
@@ -197,6 +158,45 @@ peppers = [""]
 ## If greater than 0, the number of iterations will vary by username by up to
 ## this amount
 # iterations_jitter = 100000
+
+
+[erddaputil.localprom]
+## Use these settings to specify how to connect to our custom
+## pushgateway-esque tool.
+
+## Host where our custom pushgateway lives
+host = "localhost"
+
+## Port we can connect to the pushgateway on
+port = 5000
+
+## Alternatively, specify the path to the endpoint here
+## (defaults to http://HOST:PORT/push)
+# metrics_path = ""
+
+## Username for Basic auth
+username = ""
+
+## Password for Basic auth
+password = ""
+
+## Maximum number of simultaneous push tasks
+# max_tasks = 5
+
+## Maximum number of metric changes to push in one batch
+# batch_size = 10
+
+## Maximum number of seconds to wait for more metric changes
+# batch_wait_seconds = 1
+
+## Maximum number of times to retry pushing the metrics
+# max_retries = 5
+
+## Delay in between retries
+# retry_delay_seconds = 15
+
+## Delay in checking for new messages (sleep time)
+# delay_seconds = 0.25
 
 
 ## Flask-specific configuration for the webapp.

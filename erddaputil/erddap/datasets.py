@@ -41,7 +41,7 @@ class ErddapDatasetManager:
             self.datasets_template_file = pathlib.Path(__file__).absolute().parent / "datasets.template.xml"
         self.datasets_directory = self.config.as_path(("erddaputil", "erddap", "datasets_d"), default=None)
         self.datasets_file = self.config.as_path(("erddaputil", "erddap", "datasets_xml"), default=None)
-        self.backup_directory = self.config.as_path(("erddaputil", "backups"), default=None)
+        self.backup_directory = self.config.as_path(("erddaputil", "dataset_manager", "backups"), default=None)
         self._max_pending_reloads = self.config.as_int(("erddaputil", "dataset_manager", "max_pending"), default=2)
         self._max_reload_delay = self.config.as_int(("erddaputil", "dataset_manager", "max_delay_seconds"), default=10)
         self._max_recompilation_delay = self.config.as_int(("erddaputil", "dataset_manager", "max_recompile_delay"), default=15)
@@ -644,7 +644,7 @@ class ErddapDatasetManager:
         auto_reload = (len(ds_ids) - self._max_pending_reloads) if self._max_pending_reloads > 0 else -1
         now_t = time.monotonic()
         for dataset_id, _ in ds_ids:
-            if force or auto_reload > 0 or (now_t - self._datasets_to_reload[dataset_id][1]) > self._max_reload_delay:
+            if force or auto_reload > 0 or self._max_reload_delay <= 0 or (now_t - self._datasets_to_reload[dataset_id][1]) > self._max_reload_delay:
                 auto_reload -= 1
                 try:
                     self._reload_dataset(dataset_id, self._datasets_to_reload[dataset_id][0])

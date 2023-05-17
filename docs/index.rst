@@ -4,18 +4,28 @@
    contain the root `toctree` directive.
 
 ERDDAPUtil
-======================================
+==========
+ERDDAPUtil provides a set of tools to use with `ERDDAP <https://github.com/ERDDAP/erddap>`_ that provides additional
+management tools with a focus on containerization, automation, and clustering. The key features are:
+
+* A pattern for storing dataset definitions in a folder and compiling the ``datasets.xml`` file from it
+* Activating, deactivating, and reloading datasets
+* Managing the request and subscription block lists, as well as the unlimited access allow list
+* Web hooks for requesting dataset compilation, reloading, activation, or deactivation (with authentication)
+* AMPQ integration for performing the same operation on multiple servers at once
+* Log cleanup and management
+* A `Prometheus <https://prometheus.io/>`_-compatible web API that scrapes statistics from ERDDAP
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
    :glob:
 
+   clustering
+   setup
+   cli_api
+   web_api
    code/index
-
-
-
-
 
 
 Indices and tables
