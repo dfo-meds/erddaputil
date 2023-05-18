@@ -18,11 +18,18 @@ class ErddapStatusScraper(BaseThread):
     def __init__(self):
         super().__init__("erddaputil.scraper")
         self.status_scraper_memory_file = self.config.as_path(('erddaputil', 'status_scraper', 'memory_path'), default=None)
+        if self.status_scraper_memory_file and not self.status_scraper_memory_file.parent.exists():
+            self._log.warning(f"Status scraper memory file directory {self.status_scraper_memory_file} does not exist, checking for default file...")
+            self.status_scraper_memory_file = None
+        if not self.status_scraper_memory_file:
+            self.status_scraper_memory_file = self.config.as_path(("erddaputil", "erddap", "big_parent_directory"), default=None)
+            if self.status_scraper_memory_file and self.status_scraper_memory_file.exists():
+                self.status_scraper_memory_file = self.status_scraper_memory_file / ".erddaputil_status_scraper_memory"
+                self._log.info(f"Using default location for status scraper: {self.status_scraper_memory_file}")
+            else:
+                self.status_scraper_memory_file = None
         if not self.status_scraper_memory_file:
             self._log.warning(f"Memory file not set for status scraper, metrics may become corrupt when ERDDAPUtil is restarted without restarting ERDDAP as well!")
-        elif not self.status_scraper_memory_file.parent.exists():
-            self._log.warning(f"Memory file directory does not exist, metrics may become corrupt when ERDDAPUtil is restarted without restarting ERDDAP as well!")
-            self.status_scraper_memory_file = None
         self.base_url = self.config.as_str(("erddaputil", "erddap", "base_url"), default=None)
         if self.base_url and self.base_url.endswith("/"):
             self.base_url += "status.html"
@@ -30,6 +37,8 @@ class ErddapStatusScraper(BaseThread):
             self.base_url += "/status.html"
         self.enabled = self.config.as_bool(("erddaputil", "status_scraper", "enabled"), default=True)
         self.run_frequency = self.config.as_int(("erddaputil", "status_scraper", "sleep_time_seconds"), default=300)
+        # Give ERDDAP a few minutes to get booted up after we boot
+        self._startup_at = time.monotonic() + self.config.as_int(("erddaputil", "status_scraper", "start_delay_seconds"), default=180)
         self._last_run = None
         self._remember = {
             'startup_time': '',
@@ -56,14 +65,23 @@ class ErddapStatusScraper(BaseThread):
     def _run(self, *args, **kwargs):
         if not self.enabled:
             return None
+        if self._startup_at < time.monotonic():
+            return None
         if self._last_run is not None and (time.monotonic() - self._last_run) < self.run_frequency:
             return None
         self._last_run = time.monotonic()
         if not self.base_url:
             return False
         self._log.info(f"Downloading status.html and parsing for statistics")
-        resp = requests.get(self.base_url)
-        resp.raise_for_status()
+        try:
+            resp = requests.get(self.base_url)
+            resp.raise_for_status()
+        except requests.exceptions.ConnectionError:
+            self._log.warning(f"ERDDAP was unreachable")
+            return False
+        except requests.exceptions.HTTPError as ex:
+            self._log.warning(f"ERDDAP returned error code {ex.errno}")
+            return False
         esp = ErddapStatusParser()
         esp.parse(resp.text)
 
@@ -81,7 +99,7 @@ class ErddapStatusScraper(BaseThread):
             self._save_remember()
 
         self._log.debug("Extracting metrics")
-        self._map_gauge_metric(esp, "last_major_load_duration", "erddap_last_major_load_seconds", "Time to load the last major dataset value")
+        self._map_gauge_metric(esp, "last_major_load_duration", "erddap_last_major_load_seconds", "Time to load the last major dataset value", transform=self._time_convert)
         self._map_gauge_metric(esp, "griddap_count", "erddap_datasets_grid", "Number of ERDDAP gridded datasets", default=0)
         self._map_gauge_metric(esp, "tabledap_count", "erddap_datasets_table", "Number of ERDDAP tabular datasets", default=0)
         self._map_gauge_metric(esp, "failed_dataset_count", "erddap_datasets_load_failed", "Number of ERDDAP datasets that failed to load", default=0)
@@ -194,13 +212,25 @@ class ErddapStatusScraper(BaseThread):
 
         self._log.info(f"Metric parsing complete")
 
+    def _time_convert(self, s: str) -> int:
+        pieces = s.split(' ')
+        total = 0
+        for i in range(1, len(pieces), 2):
+            if pieces[i] == "seconds" or pieces[i] == "second":
+                total += int(pieces[i-1])
+            elif pieces[i] == "minutes" or pieces[i] == "minute":
+                total += int(pieces[i-1]) * 60
+            elif pieces[i] == "hours" or pieces[i] == "hour":
+                total += int(pieces[i-1]) * 3600
+        return total
+
     def _remove_units(self, txt, scale_factor=1):
         if isinstance(txt, str):
             while not txt[-1].isdigit():
                 txt = txt[:-1]
         return int(txt) * scale_factor
 
-    def _map_counter_metric(self, esp, parsed_name, metric_name, description="", labels=None, default=None, key=None, transform=None):
+    def _map_counter_metric(self, esp, parsed_name, metric_name, description="", labels=None, default=None, key=None, transform=float):
         val = default
         if esp.has_info(parsed_name):
             val = esp.info[parsed_name]
@@ -219,13 +249,13 @@ class ErddapStatusScraper(BaseThread):
                 for l in labels:
                     tracker_name += f"::{l}={labels[l]}"
             if tracker_name in self._remember:
-                self.metrics.counter(metric_name, description=description, labels=labels).inc(val - self._remember[tracker_name])
+                self.metrics.counter(metric_name, description=description, labels=labels).inc(val - float(self._remember[tracker_name]))
             else:
                 self.metrics.counter(metric_name, description=description, labels=labels).inc(val)
             self._remember[tracker_name] = val
             self._save_remember()
 
-    def _map_gauge_metric(self, esp, parsed_name, metric_name, description="", labels=None, default=None, key=None, transform=None):
+    def _map_gauge_metric(self, esp, parsed_name, metric_name, description="", labels=None, default=None, key=None, transform=float):
         val = default
         if esp.has_info(parsed_name):
             val = esp.info[parsed_name]
@@ -237,4 +267,6 @@ class ErddapStatusScraper(BaseThread):
                 else:
                     val = default
         if val is not None and val != "":
+            if transform:
+                val = transform(val)
             self.metrics.gauge(metric_name, description=description, labels=labels).set(val)

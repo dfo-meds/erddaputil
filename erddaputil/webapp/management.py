@@ -17,7 +17,7 @@ def _map_dataset_ids(ds_id_list, cb, *args, **kwargs):
     return CommandResponse(messages, 'error' if has_errors else 'success')
 
 
-DATASET_RELOAD = Summary('erddaputil_webapp_dataset_reload', 'Time to reload a dataset')
+DATASET_RELOAD = Summary('erddaputil_webapp_dataset_reload', 'Time to reload a dataset', labelnames=["result"])
 
 
 @bp.route("/datasets/reload", methods=["POST"])
@@ -39,7 +39,7 @@ def reload_dataset():
         return _map_dataset_ids(body['dataset_id'], reload_dataset, flag=body['flag'])
 
 
-DATASET_ACTIVATE = Summary('erddaputil_webapp_dataset_activation', 'Time to activate a dataset')
+DATASET_ACTIVATE = Summary('erddaputil_webapp_dataset_activation', 'Time to activate a dataset', labelnames=["result"])
 
 
 @bp.route("/datasets/activate", methods=["POST"])
@@ -57,7 +57,7 @@ def activate_dataset():
         return _map_dataset_ids(body['dataset_id'], activate_dataset)
 
 
-DATASET_DEACTIVATE = Summary('erddaputil_webapp_dataset_deactivation', 'Time to deactivate a dataset')
+DATASET_DEACTIVATE = Summary('erddaputil_webapp_dataset_deactivation', 'Time to deactivate a dataset', labelnames=["result"])
 
 
 @bp.route("/datasets/deactivate", methods=["POST"])
@@ -75,7 +75,7 @@ def deactivate_dataset():
         return _map_dataset_ids(body['dataset_id'], deactivate_dataset)
 
 
-LOG_FLUSH = Summary('erddaputil_webapp_flush_logs', 'Time to flush logs')
+LOG_FLUSH = Summary('erddaputil_webapp_flush_logs', 'Time to flush logs', labelnames=["result"])
 
 
 @bp.route("/flush-logs", methods=["POST"])
@@ -87,7 +87,7 @@ def flush_logs():
     return flush_logs()
 
 
-LIST_DATASETS = Summary('erddaputil_webapp_list_datasets', 'Time to list datasets')
+LIST_DATASETS = Summary('erddaputil_webapp_list_datasets', 'Time to list datasets', labelnames=["result"])
 
 
 @bp.route("/datasets", methods=["GET"])
@@ -104,7 +104,7 @@ def list_datasets():
     }, 200
 
 
-CLEAR_CACHE = Summary('erddaputil_webapp_clear_cache', 'Time to clear the cache')
+CLEAR_CACHE = Summary('erddaputil_webapp_clear_cache', 'Time to clear the cache', labelnames=["result"])
 
 
 @bp.route("/clear-cache", methods=["POST"])
@@ -122,7 +122,7 @@ def clear_cache():
         return _map_dataset_ids(body['dataset_id'], clear_erddap_cache)
 
 
-COMPILE_DATASETS = Summary('erddaputil_webapp_compile_datasets', 'Time to compile the datasets')
+COMPILE_DATASETS = Summary('erddaputil_webapp_compile_datasets', 'Time to compile the datasets', labelnames=["result"])
 
 
 @bp.route("/datasets/compile", methods=["POST"])
@@ -134,7 +134,7 @@ def compile_datasets():
     return compile_datasets()
 
 
-BLOCK_IP = Summary('erddaputil_webapp_block_ip', 'Time to block an IP address')
+BLOCK_IP = Summary('erddaputil_webapp_block_ip', 'Time to block an IP address', labelnames=["result"])
 
 
 @bp.route("/block/ip", methods=["POST"])
@@ -148,7 +148,7 @@ def block_ip():
     return block_ip(flask.request.json["ip"])
 
 
-BLOCK_EMAIL = Summary('erddaputil_webapp_block_email', 'Time to block an email address')
+BLOCK_EMAIL = Summary('erddaputil_webapp_block_email', 'Time to block an email address', labelnames=["result"])
 
 
 @bp.route("/block/email", methods=["POST"])
@@ -162,7 +162,7 @@ def block_email():
     return block_email(flask.request.json["email"])
 
 
-ALLOW_UNLIMITED = Summary('erddaputil_webapp_allow_unlimited', 'Time to allow an IP address unlimited access')
+ALLOW_UNLIMITED = Summary('erddaputil_webapp_allow_unlimited', 'Time to allow an IP address unlimited access', labelnames=["result"])
 
 
 @bp.route("/allow/unlimited", methods=["POST"])
@@ -176,7 +176,7 @@ def allow_unlimited():
     return allow_unlimited(flask.request.json["ip"])
 
 
-UNBLOCK_IP = Summary('erddaputil_webapp_unblock_ip', 'Time to unblock an ip address')
+UNBLOCK_IP = Summary('erddaputil_webapp_unblock_ip', 'Time to unblock an ip address', labelnames=["result"])
 
 
 @bp.route("/unblock/ip", methods=["POST"])
@@ -190,7 +190,7 @@ def unblock_ip():
     return unblock_ip(flask.request.json["ip"])
 
 
-UNBLOCK_EMAIL = Summary('erddaputil_webapp_unblock_email', 'Time to unblock an email')
+UNBLOCK_EMAIL = Summary('erddaputil_webapp_unblock_email', 'Time to unblock an email', labelnames=["result"])
 
 
 @bp.route("/unblock/email", methods=["POST"])
@@ -204,7 +204,7 @@ def unblock_email():
     return unblock_email(flask.request.json["email"])
 
 
-UNALLOW_UNLIMITED = Summary('erddaputil_webapp_unallow_unlimited', 'Time to unallow an unlimited IP')
+UNALLOW_UNLIMITED = Summary('erddaputil_webapp_unallow_unlimited', 'Time to unallow an unlimited IP', labelnames=["result"])
 
 
 @bp.route("/unallow/unlimited", methods=["POST"])

@@ -1,4 +1,4 @@
-zirconium>=1.2.2
+zirconium>=1.2.4
 autoinject>=1.3.2
 zrlog>=0.3.0
 graceful_shutdown
@@ -11,3 +11,6 @@ requests
 aiohttp
 azure-identity
 azure-storage-blob
+bs4
+pika
+azure-servicebus

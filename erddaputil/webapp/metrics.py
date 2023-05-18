@@ -8,7 +8,7 @@ import zrlog
 bp = flask.Blueprint("metrics", __name__)
 
 PROM_METRICS = Counter("erddaputil_webapp_individual_metrics_pushed", "Number of metrics pushed to the ERDDAPUtil endpoint", labelnames=("result",))
-PROM_METRIC_REQUESTS = Summary("erddaputil_webapp_metric_push", "Time to execute a metric push")
+PROM_METRIC_REQUESTS = Summary("erddaputil_webapp_metric_push", "Time to execute a metric push", labelnames=["result"])
 
 
 class PromMetricWrapper:
@@ -84,7 +84,7 @@ def handle_metrics(wc_metrics: WebCollectedMetrics = None):
                 wc_metrics.handle_request(**json_metric)
                 PROM_METRICS.labels(result="success").inc()
             except Exception as ex:
-                zrlog.get_logger("erddaputil.webapp.metrics").exception(ex)
+                zrlog.get_logger("erddaputil.webapp.metrics").exception(f"Exception processing metric {json_metric}")
                 errors.append(str(ex))
                 result = "error"
                 PROM_METRICS.labels(result="error").inc()
@@ -93,9 +93,11 @@ def handle_metrics(wc_metrics: WebCollectedMetrics = None):
             wc_metrics.handle_request(**flask.request.json)
             PROM_METRICS.labels(result="success").inc()
         except Exception as ex:
-            zrlog.get_logger("erddaputil.webapp.metrics").exception(ex)
+            zrlog.get_logger("erddaputil.webapp.metrics").exception(f"Exception processing metric {flask.request.json}")
             errors.append(str(ex))
             result = "error"
             PROM_METRICS.labels(result="error").inc()
-    return {'status': result, 'errors': errors}, 200 if result == 'success' else 500
+            flask.jsonify()
+    return {'errors': errors, 'success': result == 'success'}
+
 

@@ -44,7 +44,7 @@ class ErddapDatasetManager:
         self.backup_directory = self.config.as_path(("erddaputil", "dataset_manager", "backups"), default=None)
         self._max_pending_reloads = self.config.as_int(("erddaputil", "dataset_manager", "max_pending"), default=2)
         self._max_reload_delay = self.config.as_int(("erddaputil", "dataset_manager", "max_delay_seconds"), default=10)
-        self._max_recompilation_delay = self.config.as_int(("erddaputil", "dataset_manager", "max_recompile_delay"), default=15)
+        self._max_recompilation_delay = self.config.as_int(("erddaputil", "dataset_manager", "max_recompile_delay_seconds"), default=15)
         self._skip_errored_datasets = self.config.as_bool(("erddaputil", "dataset_manager", "skip_misconfigured_datasets"), default=True)
         self._email_block_list_file = self.config.as_path(("erddaputil", "erddap", "subscription_block_list"), default=None)
         self._backup_retention_days = self.config.as_int(("erddaputil", "dataset_manager", "backup_retention_days"), default=30)
@@ -74,7 +74,7 @@ class ErddapDatasetManager:
         """Check if the configuration allows the datasets.xml file to be compiled from datasets.d"""
         if not (self.datasets_template_file and self.datasets_template_file.exists()):
             raise ValueError("Datasets template file is missing or not configured")
-        if not (self.datasets_directory and self.datasets_directory.exists()):
+        if not (self.datasets_directory and self.datasets_directory.parent.exists()):
             raise ValueError("Datasets.d directory is missing or not configured")
         if not (self.datasets_file and self.datasets_file.parent.exists()):
             raise ValueError("The datasets.xml directory is missing or not configured properly")
@@ -249,6 +249,17 @@ class ErddapDatasetManager:
             self.log.info(f"Flush[{1 if force else 0}] requested")
         self._flush_recompilation(force)
         self._flush_datasets(force)
+
+    def fix_bpd_permissions(self):
+        """Fix the permissions on the big parent directory"""
+        if not (self.bpd and self.bpd.exists()):
+            self.log.warning(f"BPD does not exist, cannot fix permissions.")
+        if not hasattr(os, 'chown'):
+            self.log.warning(f"BPD permission fix requested on Windows, cannot execute.")
+        else:
+            uid = self.config.as_int(("erddaputil", "erddap", "tomcat_uid"), default=1000)
+            gid = self.config.as_int(("erddaputil", "erddap", "tomcat_gid"), default=1000)
+            os.chown(str(self.bpd), uid=uid, gid=gid)
 
     def _try_setting_active_flag(self, file_path: pathlib.Path, dataset_id: str, active_flag: bool) -> int:
         try:
@@ -469,6 +480,9 @@ class ErddapDatasetManager:
 
     def _find_datasets(self, skip_errored_datasets: bool = False):
         """Find all datasets"""
+        if not self.datasets_directory.exists():
+            self.log.warning("Datasets.d directory does not exist.")
+            return []
         with os.scandir(self.datasets_directory) as files:
             for file in files:
                 try:
@@ -488,7 +502,7 @@ class ErddapDatasetManager:
         elements = [("/dataset", element)]
         while elements:
             path, e = elements.pop()
-            txt = e.text.strip('\r\n\t ')
+            txt = e.text.strip('\r\n\t ') if e.text else None
             if txt:
                 info.append(f"{path}[text]=={txt}")
             for aname in e.attrib:
@@ -613,15 +627,16 @@ class ErddapDatasetManager:
             unlimited_element.text = ",".join(self._expand_ip_addresses(unlimited_allow, False))
 
         if ip_blocks:
-            if email_element is None:
-                email_element = ET.Element("subscriptionEmailBlacklist")
-                datasets_root.insert(0, email_element)
-            ip_element.text = ",".join(self._expand_ip_addresses(ip_blocks, True))
-            self.log.debug(f"Blocked ip address count: {len(ip_blocks)}")
-        if email_blocks:
             if ip_element is None:
                 ip_element = ET.Element("requestBlacklist")
                 datasets_root.insert(0, ip_element)
+            ip_element.text = ",".join(self._expand_ip_addresses(ip_blocks, True))
+            self.log.debug(f"Blocked ip address count: {len(ip_blocks)}")
+
+        if email_blocks:
+            if email_element is None:
+                email_element = ET.Element("subscriptionEmailBlacklist")
+                datasets_root.insert(0, email_element)
             email_element.text = ",".join(e for e in email_blocks if e)
             self.log.debug(f"Blocked email count: {len(email_blocks)}")
 

@@ -5,6 +5,9 @@
 ## a local daemon (the default) and/or an AMPQ message queue. These messages are
 ## triggered by calling the CLI or the HTTP interface.
 
+## Set to true to dump the configuration out on boot (with secrets obfuscated)
+# show_config = false
+
 # Make sure this value is hard to guess and secret but the same between all servers
 # It will be used to sign the messages passed to AMPQ and to the local
 # server daemons to prevent malicious messages from being sent.
@@ -23,6 +26,19 @@ secret_key = ""
 ## is to not send metrics.
 metrics_manager = "erddaputil.main.metrics.LocalPrometheusSendThread"
 
+## Set this to false to prevent ERDDAPUtil from doing a compile on startup
+#compile_on_boot = true
+
+## Set this to false to prevent ERDDAPUtil from overriding the default credentials
+## on startup
+#create_default_user_on_boot = true
+
+## Credentials that are created by default on startup
+#default_username = "admin"
+#default_password = "admin"
+
+## Set to false to not try to fix the ERDDAP's BPD permissions on boot
+# fix_erddap_bpd_permissions = true
 
 [erddaputil.erddap]
 ## Enter the path to your ERDDAP bigParentDirectory. If left blank, dataset reloads cannot be done.
@@ -46,6 +62,10 @@ base_url = ""
 # ip_block_list = ""                    # Defaults to .ip_block_list.txt in XML template directory
 # unlimited_allow_list = ""             # Defaults to .unlimited_allow_list.txt in XML directory
 
+## If ERDDAPUtil is instructed to fix the ERDDAP server's BPD permissions on boot, these are the
+## values used (defaults are from the Axiom Docker install of ERDDAP).
+# tomcat_uid = 1000
+# tomcat_gid = 1000
 
 [erddaputil.dataset_manager]
 ## Maximum number of datasets that can be pending reload at once
@@ -55,7 +75,7 @@ base_url = ""
 # max_delay_seconds = 10
 
 ## Maximum delay in seconds that a request to recompile will wait
-# max_recompile_delay = 15
+# max_recompile_delay_seconds = 15
 
 ## If set to false, a poorly formed XML document will cause the recompile process to abort.
 ## Otherwise, the file is simply omitted and a warning emitted.
@@ -168,7 +188,7 @@ peppers = [""]
 host = "localhost"
 
 ## Port we can connect to the pushgateway on
-port = 5000
+port = 9173
 
 ## Alternatively, specify the path to the endpoint here
 ## (defaults to http://HOST:PORT/push)
@@ -198,6 +218,21 @@ password = ""
 ## Delay in checking for new messages (sleep time)
 # delay_seconds = 0.25
 
+
+[erddaputil.status_scraper]
+
+## Set to false to disable scraping the status page to Prometheus metrics
+# enabled = true
+
+##
+memory_path = ""
+
+## Change the default time between scraps
+# sleep_time_seconds = 300
+
+## Change the time to wait after the daemon boots (defaults to 3 minutes)
+## This lets ERDDAP boot before we start hitting it for status message updates
+# start_delay_seconds = 180
 
 ## Flask-specific configuration for the webapp.
 [flask]

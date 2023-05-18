@@ -25,15 +25,87 @@ def _config(app: zr.ApplicationConfig):
     if extras:
         dirs.extend(extras.split(";"))
     app.register_files(dirs, [".erddaputil.toml"], [".erddaputil.defaults.toml"])
+    app.register_environ_map({
+        "ERDDAPUTIL_SECRET_KEY": ("erddaputil", "secret_key"),
+        "ERDDAPUTIL_USE_LOCAL_DAEMON": ("erddaputil", "use_local_daemon"),
+        "ERDDAPUTIL_USE_AMPQ_EXCHANGE": ("erddaputil", "use_ampq_exchange"),
+        "ERDDAPUTIL_METRICS_MANAGER": ("erddaputil", "metrics_manager"),
+        "ERDDAPUTIL_COMPILE_ON_BOOT": ("erddaputil", "compile_on_boot"),
+        "ERDDAPUTIL_CREATE_DEFAULT_USER_ON_BOOT": ("erddaputil", "create_default_user_on_boot"),
+        "ERDDAPUTIL_DEFAULT_USERNAME": ("erddaputil", "default_username"),
+        "ERDDAPUTIL_DEFAULT_PASSWORD": ("erddaputil", "default_password"),
+        "ERDDAPUTIL_ERDDAP_DATASETS_XML_TEMPLATE": ("erddaputil", "erddap", "datasets_xml_template"),
+        "ERDDAPUTIL_ERDDAP_DATASETS_D": ("erddaputil", "erddap", "datasets_d"),
+        "ERDDAPUTIL_ERDDAP_BIG_PARENT_DIRECTORY": ("erddaputil", "erddap", "big_parent_directory"),
+        "ERDDAPUTIL_ERDDAP_DATASETS_XML": ("erddaputil", "erddap", "datasets_xml"),
+        "ERDDAPUTIL_ERDDAP_BASE_URL": ("erddaputil", "erddap", "base_url"),
+        "ERDDAPUTIL_ERDDAP_SUBSCRIPTION_BLOCK_LIST": ("erddaputil", "erddap", ",subscription_block_list"),
+        "ERDDAPUTIL_ERDDAP_IP_BLOCK_LIST": ("erddaputil", "erddap", ",ip_block_list"),
+        "ERDDAPUTIL_ERDDAP_UNLIMITED_ALLOW_LIST": ("erddaputil", "erddap", ",unlimited_allow_list"),
+        "ERDDAPUTIL_DATASET_MANAGER_MAX_PENDING": ("erddaputil", "dataset_manager", ",max_pending"),
+        "ERDDAPUTIL_DATASET_MANAGER_MAX_DELAY_SECONDS": ("erddaputil", "dataset_manager", ",max_delay_seconds"),
+        "ERDDAPUTIL_DATASET_MANAGER_MAX_RECOMPILE_DELAY": ("erddaputil", "dataset_manager", ",max_recompile_delay"),
+        "ERDDAPUTIL_DATASET_MANAGER_SKIP_MISCONFIGURED_DATASETS": ("erddaputil", "dataset_manager", ",skip_misconfigured_datasets"),
+        "ERDDAPUTIL_DATASET_MANAGER_BACKUPS": ("erddaputil", "dataset_manager", ",backups"),
+        "ERDDAPUTIL_DATASET_MANAGER_BACKUP_RETENTION_DAYS": ("erddaputil", "dataset_manager", ",backup_retention_days"),
+        "ERDDAPUTIL_DAEMON_HOST": ("erddaputil", "daemon", ",host"),
+        "ERDDAPUTIL_DAEMON_PORT": ("erddaputil", "daemon", ",port"),
+        "ERDDAPUTIL_SERVICE_HOST": ("erddaputil", "service", ",host"),
+        "ERDDAPUTIL_SERVICE_PORT": ("erddaputil", "service", ",port"),
+        "ERDDAPUTIL_SERVICE_BACKLOG": ("erddaputil", "service", ",backlog"),
+        "ERDDAPUTIL_SERVICE_LISTEN_BLOCK_SECONDS": ("erddaputil", "service", ",listen_block_seconds"),
+        "ERDDAPUTIL_LOGMAN_ENABLED": ("erddaputil", "logman", ",enabled"),
+        "ERDDAPUTIL_LOGMAN_RETENTION_DAYS": ("erddaputil", "logman", ",retention_days"),
+        "ERDDAPUTIL_LOGMAN_SLEEP_TIME_SECONDS": ("erddaputil", "logman", ",sleep_time_seconds"),
+        "ERDDAPUTIL_AMPQ_CLUSTER_NAME": ("erddaputil", "ampq", ",cluster_name"),
+        "ERDDAPUTIL_AMPQ_HOSTNAME": ("erddaputil", "ampq", ",hostname"),
+        "ERDDAPUTIL_AMPQ_CONNECTION": ("erddaputil", "ampq", ",connection"),
+        "ERDDAPUTIL_AMPQ_EXCHANGE_NAME": ("erddaputil", "ampq", ",exchange_name"),
+        "ERDDAPUTIL_AMPQ_CREATE_QUEUE": ("erddaputil", "ampq", ",create_queue"),
+        "ERDDAPUTIL_AMPQ_IMPLEMENTATION": ("erddaputil", "ampq", ",implementation"),
+        "ERDDAPUTIL_WEBAPP_ENABLE_METRICS_COLLECTOR": ("erddaputil", "webapp", ",enable_metrics_collector"),
+        "ERDDAPUTIL_WEBAPP_ENABLE_MANAGEMENT_API": ("erddaputil", "webapp", ",enable_management_api"),
+        "ERDDAPUTIL_WEBAPP_PASSWORD_FILE": ("erddaputil", "webapp", ",password_file"),
+        "ERDDAPUTIL_WEBAPP_PASSWORD_HASH": ("erddaputil", "webapp", ",password_hash"),
+        "ERDDAPUTIL_WEBAPP_SALT_LENGTH": ("erddaputil", "webapp", ",salt_length"),
+        "ERDDAPUTIL_WEBAPP_MIN_ITERATIONS": ("erddaputil", "webapp", ",min_iterations"),
+        "ERDDAPUTIL_WEBAPP_ITERATIONS_JITTER": ("erddaputil", "webapp", ",iterations_jitter"),
+        "ERDDAPUTIL_LOCALPROM_HOST": ("erddaputil", "localprom", ",host"),
+        "ERDDAPUTIL_LOCALPROM_PORT": ("erddaputil", "localprom", ",port"),
+        "ERDDAPUTIL_LOCALPROM_METRICS_PATH": ("erddaputil", "localprom", ",metrics_path"),
+        "ERDDAPUTIL_LOCALPROM_USERNAME": ("erddaputil", "localprom", ",username"),
+        "ERDDAPUTIL_LOCALPROM_PASSWORD": ("erddaputil", "localprom", ",password"),
+        "ERDDAPUTIL_LOCALPROM_MAX_TASKS": ("erddaputil", "localprom", ",max_tasks"),
+        "ERDDAPUTIL_LOCALPROM_BATCH_SIZE": ("erddaputil", "localprom", ",batch_size"),
+        "ERDDAPUTIL_LOCALPROM_BATCH_WAIT_SECONDS": ("erddaputil", "localprom", ",batch_wait_seconds"),
+        "ERDDAPUTIL_LOCALPROM_MAX_RETRIES": ("erddaputil", "localprom", ",max_retries"),
+        "ERDDAPUTIL_LOCALPROM_RETRY_DELAY_SECONDS": ("erddaputil", "localprom", ",retry_delay_seconds"),
+        "ERDDAPUTIL_LOCALPROM_DELAY_SECONDS": ("erddaputil", "localprom", ",delay_seconds"),
+        "ERDDAPUTIL_STATUS_SCRAPER_MEMORY_PATH": ("erddaputil", "status_scraper", "memory_path"),
+        "ERDDAPUTIL_STATUS_SCRAPER_ENABLED": ("erddaputil", "status_scraper", "enabled"),
+        "ERDDAPUTIL_STATUS_SCRAPER_SLEEP_TIME_SECONDS": ("erddaputil", "status_scraper", "sleep_time_seconds"),
+        "ERDDAPUTIL_SHOW_CONFIG": ("erddaputil", "show_config"),
+        "ERDDAPUTIL_FIX_ERDDAP_BPD_PERMISSIONS": ("erddaputil", "fix_erddap_bpd_permissions"),
+        "ERDDAPUTIL_ERDDAP_TOMCAT_UID": ("erddaputil", "tomcat_uid"),
+        "ERDDAPUTIL_ERDDAP_TOMCAT_GID": ("erddaputil", "tomcat_gid"),
+    })
 
 
 def init_config():
     """Initialize the logging. """
     zrlog.init_logging()
-    zr.print_config(obfuscate_keys=[
-        ("erddaputil", "secret_key"),
-        ("erddaputil", "localprom", "password"),
-    ])
+    _print_config()
+
+
+@injector.inject
+def _print_config(cfg: zr.ApplicationConfig = None):
+    if cfg.as_bool(("erddaputil", "show_config"), default=False):
+        zr.print_config(obfuscate_keys=[
+            ("erddaputil", "secret_key"),
+            ("erddaputil", "default_password"),
+            ("erddaputil", "localprom", "password"),
+            ("erddaputil", "webapp", "peppers"),
+        ])
 
 
 def load_object(obj_name: str) -> t.Any:

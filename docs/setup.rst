@@ -1,85 +1,142 @@
 Setting Up ERDDAPUtil
 =====================
-
 ERDDAPUtil is designed to function as a sidecar container to ERDDAP, in that each ERDDAP server should have one
 instance of ERDDAPUtil running beside it. ERDDAPUtil will need access to the ``bigParentDirectory`` of ERDDAP, to the
 Tomcat configuration, and to data files.
 
+Quick Setup
+-----------
+1. Create a directory for your project
+2. Copy and paste the contents of the compose.yaml file below into ``compose.yaml``
+3. Create a subdirectory called ``erddaputil_config``
+4. Copy and paste the quick startup configuration below into ``.erddaputil.toml``
+5. Run ``docker compose up --detach``
+6. ERDDAP will be available on ``http://localhost:8080`` and the metrics/management API on ``http://localhost:9173``
+
+
 Docker Compose
 --------------
-
 This simple example illustrates a minimal configuration for using ERDDAPUtil and ERDDAP
 in Docker via a compose file. This file would go in the same directory as a copy of the
 ERDDAPUtil repository (later to be released as a Docker Hub image to simplify this).
 
-
 .. code-block:: yaml
+    services:
 
-   services:
+        # ERDDAP
+        erddap:
+            image: axiom/docker-erddap:2.23-jdk17-openjdk
+            volumes:
+                - "ephemeral-data:/erddap_data"
+                - "persistent-data:/persistent_data"
+                - "erddap-content:/usr/local/tomcat/content/erddap"
+            ports:
+                - "8080:8080"
+            environment:
+                - "ERDDAP_bigParentDirectory=/erddap_data"
+            networks:
+                - erddap-network
+            depends_on:
+                - erddaputil_daemon
 
-     # ERDDAP
-     erddap:
-       image: axiom/docker-erddap:2.23-jdk17-openjdk
-       volumes:
-         - "ephemeral-data:/erddap_data"
-         - "persistent-data:/persistent_data"
-         - "erddap-content:/usr/local/tomcat/content/erddap"
-       ports:
-         - "8080:8080"
-       environment:
-         - "ERDDAP_bigParentDirectory=/erddap_data"
-       networks:
-         - erddap-network
+        # Management Daemon
+        erddaputil_daemon:
+            image: dfomeds/erddaputil:latest
+            volumes:
+                - "ephemeral-data:/erddap_data"
+                - "persistent-data:/persistent_data"
+                - "erddap-content:/erddap_content"
+                - "./erddaputil_config:/erddap_util/config"
+            networks:
+                - erddap-network
+            depends_on:
+                - erddaputil_webapp
 
-     # Management Daemon
-     erddaputil_daemon:
-       build: ./erddaputil
-       volumes:
-         - "ephemeral-data:/erddap_data"
-         - "persistent-data:/persistent_data"
-         - "erddap-content:/erddap_content"
-         - "./erddaputil_config:/erddap_util/config"
-       networks:
-         - erddap-network
+        # Web Application
+        erddaputil_webapp:
+            image: dfomeds/erddaputil:latest
+            command: ["webserver"]
+            volumes:
+                - "ephemeral-data:/erddap_data"
+                - "persistent-data:/persistent_data"
+                - "erddap-content:/erddap_content"
+                - "./erddaputil_config:/erddap_util/config"
+            ports:
+                - "9173:9173"
+            networks:
+                - erddap-network
 
-     # Web Application
-     erddaputil_webapp:
-       build: ./erddaputil
-       command: ["webserver"]
-       volumes:
-         - "ephemeral-data:/erddap_data"
-         - "persistent-data:/persistent_data"
-         - "erddap-content:/erddap_content"
-         - "./erddaputil_config:/erddap_util/config"
-       ports:
-         - "9173:9173"
-       networks:
-         - erddap-network
+        # AMPQ Listener
+        erddaputil_ampq:
+            image: dfomeds/erddaputil:latest
+            command: ["ampq"]
+            volumes:
+                - "ephemeral-data:/erddap_data"
+                - "persistent-data:/persistent_data"
+                - "erddap-content:/erddap_content"
+                - "./erddaputil_config:/erddap_util/config"
+            networks:
+                - erddap-network
+            depends_on:
+                - erddaputil_daemon
 
-     # AMPQ Listener
-     erddaputil_ampq:
-       build: ./erddaputil
-       command: ["ampq"]
-       volumes:
-         - "ephemeral-data:/erddap_data"
-         - "persistent-data:/persistent_data"
-         - "erddap-content:/erddap_content"
-         - "./erddaputil_config:/erddap_util/config"
-       networks:
-         - erddap-network
+    networks:
+        erddap-network:
 
-   networks:
-     erddap-network:
+    volumes:
+        ephemeral-data:
+        persistent-data:
+        erddap-content:
 
-   volumes:
-     ephemeral-data:
-     persistent-data:
-     erddap-content:
+Quickstart Configuration
+------------------------
+The configuration below should work out-of-the-box for the Docker compose file above. You will need to modify it to suit
+your use case.
 
+.. code-block:: toml
+    [erddaputil]
+    # Change these to something unique and secure in production
+    secret_key = "SECRET"
+    default_username = "admin"
+    default_password = "admin"
+    metrics_manager = "erddaputil.main.metrics.LocalPrometheusSendThread"
+
+    [erddaputil.erddap]
+    # Adjust to match as needed
+    big_parent_directory = "/erddap_data"
+    datasets_d = "/persistent_data/datasets.d"
+    datasets_xml = "/erddap_content/datasets.xml"  # Points to /usr/local/tomcat/content/erddap/datasets.xml on ERDDAP container
+    base_url = "http://erddap:8080/erddap"
+
+    [erddaputil.dataset_manager]
+    # Adjust if needed
+    backups = "/erddap_data/_dataset_backups"
+
+    [erddaputil.daemon]
+    # name of your daemon container here, if on the same network in Docker
+    host = "erddaputil_daemon"
+
+    [erddaputil.service]
+    host = "0.0.0.0"
+
+    [erddaputil.webapp]
+    # Adjust if needed
+    password_file = "/erddap_data/.erddaputil_webapp_passwords"
+
+    # Change this and keep it secret
+    peppers = ["SECRET2"]
+
+    [erddaputil.localprom]
+    # Name of your host here
+    host = "erddaputil_webapp"
+    port = 9173
+    # Use the default_username and default_password here unless you have made another account.
+    username = "admin"
+    password = "admin"
 
 Configuration
 -------------
-Configuration is done via a TOML file located at ``./erddaputil_config/.erddaputil.toml`` (using the above Docker
+Configuration is done via a TOML file located at ``.erddaputil.toml`` (using the above Docker
 configuration). Use the ``.erddaputil.example.toml`` file to create this. Common settings are below.
 
 ``erddaputil.secret_key``

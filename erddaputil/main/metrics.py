@@ -64,7 +64,7 @@ class _ScriptGaugeMetric(AbstractMetric):
         self.send_message('dec', amount=amount)
 
     def set(self, amount):
-        self.send_message('set', amount=amount)
+        self.send_message('set', value=amount)
 
 
 class _ScriptSummaryMetric(AbstractMetric):
@@ -73,7 +73,7 @@ class _ScriptSummaryMetric(AbstractMetric):
         super().__init__('summary', *args, **kwargs)
 
     def observe(self, value):
-        self.send_message('observe', value=value)
+        self.send_message('observe', amount=value)
 
 
 class _ScriptHistogramMetric(AbstractMetric):
@@ -83,7 +83,7 @@ class _ScriptHistogramMetric(AbstractMetric):
         self.buckets = buckets
 
     def observe(self, value, exemplar=None):
-        self.send_message('observe', value=value, exemplar=exemplar, _buckets=self.buckets)
+        self.send_message('observe', amount=value, exemplar=exemplar, _buckets=self.buckets)
 
 
 class _ScriptInfoMetric(AbstractMetric):
@@ -91,8 +91,8 @@ class _ScriptInfoMetric(AbstractMetric):
     def __init__(self, *args, **kwargs):
         super().__init__('info', *args, **kwargs)
 
-    def info(self, key, value):
-        self.send_message('info', key=key, value=value)
+    def info(self, val):
+        self.send_message('info', val=val)
 
 
 class _ScriptEnumMetric(AbstractMetric):
@@ -101,7 +101,7 @@ class _ScriptEnumMetric(AbstractMetric):
         super().__init__('enum', *args, **kwargs)
 
     def state(self, state_name):
-        self.send_message('state', state_name=state_name)
+        self.send_message('state', state=state_name)
 
 
 class LocalPrometheusSendThread(BaseThread):
@@ -114,7 +114,7 @@ class LocalPrometheusSendThread(BaseThread):
         self.messages = queue.SimpleQueue()
 
         host = self.config.as_str(("erddaputil", "localprom", "host"), default="localhost")
-        port = self.config.as_int(("erddaputil", "localprom", "port"), default=5000)
+        port = self.config.as_int(("erddaputil", "localprom", "port"), default=9173)
         self._endpoint = self.config.as_str(("erddaputil", "localprom", "metrics_path"), default=f"http://{host}:{port}/push")
         self._log.debug(f"Local prometheus send thread configured to send to {self._endpoint}")
 
@@ -201,7 +201,7 @@ class LocalPrometheusSendThread(BaseThread):
                 async with session.post(self._endpoint, json=json_data, headers=self._headers) as resp:
                     resp.raise_for_status()
                     info = await resp.json()
-                    if not info["status"] == "success":
+                    if not ('success' in info and info["success"]):
                         for error in info["errors"]:
                             self._log.warning(f"Error from web API for metrics: {error}, retries: [{retries if not retry_forever else 'inf'}]")
                         if retries > 0:
