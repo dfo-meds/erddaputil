@@ -27,16 +27,18 @@ DATASET_RELOAD = Summary('erddaputil_webapp_dataset_reload', 'Time to reload a d
 def reload_dataset():
     from erddaputil.erddap.commands import reload_dataset, reload_all_datasets
     body = flask.request.json
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
     if "flag" not in body:
         body["flag"] = 0
     elif body["flag"] not in (0, 1, 2):
         raise ValueError("Invalid flag")
-    if "dataset_id" not in body:
-        return reload_all_datasets(flag=body["flag"])
-    elif isinstance(body["dataset_id"], str):
-        return reload_dataset(body['dataset_id'], flag=body['flag'])
+    if "dataset_id" not in body or not body["dataset_id"]:
+        return reload_all_datasets(flag=body["flag"], _broadcast=int(body["_broadcast"]))
     else:
-        return _map_dataset_ids(body['dataset_id'], reload_dataset, flag=body['flag'])
+        return reload_dataset(body['dataset_id'], flag=body['flag'], _broadcast=int(body["_broadcast"]))
 
 
 DATASET_ACTIVATE = Summary('erddaputil_webapp_dataset_activation', 'Time to activate a dataset', labelnames=["result"])
@@ -49,12 +51,13 @@ DATASET_ACTIVATE = Summary('erddaputil_webapp_dataset_activation', 'Time to acti
 def activate_dataset():
     from erddaputil.erddap.commands import activate_dataset
     body = flask.request.json
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
     if "dataset_id" not in body:
         raise ValueError("Dataset ID required")
-    elif isinstance(body["dataset_id"], str):
-        return activate_dataset(body["dataset_id"])
-    else:
-        return _map_dataset_ids(body['dataset_id'], activate_dataset)
+    return activate_dataset(body["dataset_id"], _broadcast=int(body["_broadcast"]))
 
 
 DATASET_DEACTIVATE = Summary('erddaputil_webapp_dataset_deactivation', 'Time to deactivate a dataset', labelnames=["result"])
@@ -67,12 +70,13 @@ DATASET_DEACTIVATE = Summary('erddaputil_webapp_dataset_deactivation', 'Time to 
 def deactivate_dataset():
     from erddaputil.erddap.commands import deactivate_dataset
     body = flask.request.json
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
     if "dataset_id" not in body:
         raise ValueError("Dataset ID required")
-    elif isinstance(body["dataset_id"], str):
-        return deactivate_dataset(body["dataset_id"])
-    else:
-        return _map_dataset_ids(body['dataset_id'], deactivate_dataset)
+    return deactivate_dataset(body["dataset_id"], _broadcast=int(body["_broadcast"]))
 
 
 LOG_FLUSH = Summary('erddaputil_webapp_flush_logs', 'Time to flush logs', labelnames=["result"])
@@ -84,7 +88,12 @@ LOG_FLUSH = Summary('erddaputil_webapp_flush_logs', 'Time to flush logs', labeln
 @require_login
 def flush_logs():
     from erddaputil.erddap.commands import flush_logs
-    return flush_logs()
+    body = flask.request.json or {}
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
+    return flush_logs(_broadcast=int(body["_broadcast"]))
 
 
 LIST_DATASETS = Summary('erddaputil_webapp_list_datasets', 'Time to list datasets', labelnames=["result"])
@@ -113,13 +122,14 @@ CLEAR_CACHE = Summary('erddaputil_webapp_clear_cache', 'Time to clear the cache'
 @require_login
 def clear_cache():
     from erddaputil.erddap.commands import clear_erddap_cache
-    body = flask.request.json
+    body = flask.request.json or {}
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
     if "dataset_id" not in body:
-        return clear_erddap_cache("")
-    elif isinstance(body["dataset_id"], str):
-        return clear_erddap_cache(body["dataset_id"])
-    else:
-        return _map_dataset_ids(body['dataset_id'], clear_erddap_cache)
+        return clear_erddap_cache("", _broadcast=int(body["_broadcast"]))
+    return clear_erddap_cache(body["dataset_id"], _broadcast=int(body["_broadcast"]))
 
 
 COMPILE_DATASETS = Summary('erddaputil_webapp_compile_datasets', 'Time to compile the datasets', labelnames=["result"])
@@ -131,7 +141,12 @@ COMPILE_DATASETS = Summary('erddaputil_webapp_compile_datasets', 'Time to compil
 @require_login
 def compile_datasets():
     from erddaputil.erddap.commands import compile_datasets
-    return compile_datasets()
+    body = flask.request.json or {}
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
+    return compile_datasets(_broadcast=int(body["_broadcast"]))
 
 
 BLOCK_IP = Summary('erddaputil_webapp_block_ip', 'Time to block an IP address', labelnames=["result"])
@@ -143,9 +158,14 @@ BLOCK_IP = Summary('erddaputil_webapp_block_ip', 'Time to block an IP address', 
 @require_login
 def block_ip():
     from erddaputil.erddap.commands import block_ip
-    if "ip" not in flask.request.json:
+    body = flask.request.json or {}
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
+    if "ip" not in body:
         raise flask.abort(400)
-    return block_ip(flask.request.json["ip"])
+    return block_ip(body["ip"], _broadcast=int(body["_broadcast"]))
 
 
 BLOCK_EMAIL = Summary('erddaputil_webapp_block_email', 'Time to block an email address', labelnames=["result"])
@@ -157,9 +177,14 @@ BLOCK_EMAIL = Summary('erddaputil_webapp_block_email', 'Time to block an email a
 @require_login
 def block_email():
     from erddaputil.erddap.commands import block_email
-    if "email" not in flask.request.json:
+    body = flask.request.json or {}
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
+    if "email" not in body:
         raise flask.abort(400)
-    return block_email(flask.request.json["email"])
+    return block_email(body["email"], _broadcast=int(body["_broadcast"]))
 
 
 ALLOW_UNLIMITED = Summary('erddaputil_webapp_allow_unlimited', 'Time to allow an IP address unlimited access', labelnames=["result"])
@@ -171,9 +196,14 @@ ALLOW_UNLIMITED = Summary('erddaputil_webapp_allow_unlimited', 'Time to allow an
 @require_login
 def allow_unlimited():
     from erddaputil.erddap.commands import allow_unlimited
-    if "ip" not in flask.request.json:
+    body = flask.request.json or {}
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
+    if "ip" not in body:
         raise flask.abort(400)
-    return allow_unlimited(flask.request.json["ip"])
+    return allow_unlimited(body["ip"], _broadcast=int(body["_broadcast"]))
 
 
 UNBLOCK_IP = Summary('erddaputil_webapp_unblock_ip', 'Time to unblock an ip address', labelnames=["result"])
@@ -185,9 +215,14 @@ UNBLOCK_IP = Summary('erddaputil_webapp_unblock_ip', 'Time to unblock an ip addr
 @require_login
 def unblock_ip():
     from erddaputil.erddap.commands import unblock_ip
-    if "ip" not in flask.request.json:
+    body = flask.request.json or {}
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
+    if "ip" not in body:
         raise flask.abort(400)
-    return unblock_ip(flask.request.json["ip"])
+    return unblock_ip(body["ip"], _broadcast=int(body["_broadcast"]))
 
 
 UNBLOCK_EMAIL = Summary('erddaputil_webapp_unblock_email', 'Time to unblock an email', labelnames=["result"])
@@ -199,9 +234,14 @@ UNBLOCK_EMAIL = Summary('erddaputil_webapp_unblock_email', 'Time to unblock an e
 @require_login
 def unblock_email():
     from erddaputil.erddap.commands import unblock_email
-    if "email" not in flask.request.json:
+    body = flask.request.json or {}
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
+    if "email" not in body:
         raise flask.abort(400)
-    return unblock_email(flask.request.json["email"])
+    return unblock_email(body["email"], _broadcast=int(body["_broadcast"]))
 
 
 UNALLOW_UNLIMITED = Summary('erddaputil_webapp_unallow_unlimited', 'Time to unallow an unlimited IP', labelnames=["result"])
@@ -213,6 +253,11 @@ UNALLOW_UNLIMITED = Summary('erddaputil_webapp_unallow_unlimited', 'Time to unal
 @require_login
 def unallow_unlimited():
     from erddaputil.erddap.commands import unallow_unlimited
-    if "ip" not in flask.request.json:
+    body = flask.request.json or {}
+    if "_broadcast" not in body:
+        body["_broadcast"] = 1
+    elif body["_broadcast"] not in (0, 1, 2, "1", "2", "0"):
+        raise ValueError("Invalid broadcast flag")
+    if "ip" not in body:
         raise flask.abort(400)
-    return unallow_unlimited(flask.request.json["ip"])
+    return unallow_unlimited(body["ip"], _broadcast=int(body["_broadcast"]))

@@ -1,1 +1,3 @@
 autoinject>=1.3.2
+sphinx-toolbox
+sphinx-click

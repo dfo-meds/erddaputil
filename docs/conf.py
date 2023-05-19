@@ -19,10 +19,23 @@ release = '0.2.0'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.linkcode', 'sphinx.ext.napoleon']
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.linkcode',
+    'sphinx.ext.napoleon',
+    'sphinx.ext.intersphinx',
+    'sphinx_toolbox.collapse',
+    'sphinx_toolbox.confval',
+    'sphinx_click',
+
+]
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3', None),
+    'pika': ('https://pika.readthedocs.io/en/stable/', None),
+}
 
 
 def linkcode_resolve(domain, info):

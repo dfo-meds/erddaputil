@@ -45,7 +45,8 @@ changes are made, it will then recompile ``datasets.xml`` and prompt a reloading
 
 List Datasets
 -------------
-This tool will scan ``datasets.xml`` and output the IDs of all of the datasets found.
+This tool will scan ``datasets.xml`` and output the IDs of all of the datasets found. Note that this does not use the
+AMPQ interface and can only talk to the local ERDDAPUtil daemon to obtain datasets.
 
 Log Flushing
 ------------

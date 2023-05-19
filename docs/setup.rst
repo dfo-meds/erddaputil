@@ -24,6 +24,7 @@ in Docker via a compose file. This file would go in the same directory as a copy
 ERDDAPUtil repository (later to be released as a Docker Hub image to simplify this).
 
 .. code-block:: yaml
+
     services:
 
         # ERDDAP
@@ -102,6 +103,7 @@ variable is named ``ERDDAPUTIL_ERDDAP_BIG_PARENT_DIRECTORY``. This does not work
 lists, such as the peppers.
 
 .. code-block:: toml
+
     [erddaputil]
     show_config = true
     # Change these to something unique and secure in production
