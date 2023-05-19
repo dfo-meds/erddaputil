@@ -1,4 +1,3 @@
-
 Clustering ERDDAP
 =================
 This project starts with an assumption that users will (eventually) want to create a mirror of their ERDDAP with the
@@ -29,18 +28,16 @@ shared storage backend should be mounted at the same directory on every server a
 
 Change Management
 -----------------
-
 When a change is deployed to any of the shared content, you then have two options:
 
 1. If you have an AMPQ server available and have connected your ERDDAP servers using it, you can push a message to
    AMPQ to perform the appropriate operation to refresh the server content. This can be sent manually or by using the
-   provided CLI or HTTP APIs to make the request.
+   provided :doc:`/cli_api` or :doc:`/web_api` to make the request.
 2. If not, you can make an HTTP request to each server to request the operation be performed.
 
 
 Reverse Proxy Configuration
 ---------------------------
-
 For ideal performance, the reverse proxy should then be configured to send requests for the same dataset to the same
 backup to maximize ERDDAP's use of its own local cache.
 
@@ -64,7 +61,3 @@ In nginx, this can be done as follows (this configuration is untested, let me kn
        server erddap1.example.com;
        server erddap2.example.com;
    }
-
-
-
-

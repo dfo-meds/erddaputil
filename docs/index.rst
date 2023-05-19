@@ -21,10 +21,17 @@ management tools with a focus on containerization, automation, and clustering. T
    :caption: Contents:
    :glob:
 
-   clustering
+   overview
    setup
    cli_api
    web_api
+   ampq_api
+   control_lists
+   dataset_manager
+   erddap_metrics
+   log_management
+   config
+   clustering
    code/index
 
 

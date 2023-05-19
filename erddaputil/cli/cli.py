@@ -38,9 +38,11 @@ def handle_command_response(fn: callable):
 @click.option("--bad-files", "-b", "flag", flag_value=1, help="Remove and reload all bad files in addition to scanning and updating the information.")
 @click.option("--hard", "-h", "flag", flag_value=2, help="Remove the entire dataset (except the decompression cache) and rebuild it from scratch.")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
 @handle_command_response
-def reload_dataset(dataset_id: str = "", flag: int = 0, delay: bool = True, broadcast: bool = True):
+def reload_dataset(dataset_id: str = "", flag: int = 0, delay: bool = True, broadcast: int = 1):
     """Reload a dataset"""
     if not dataset_id:
         from erddaputil.erddap.commands import reload_all_datasets
@@ -52,9 +54,11 @@ def reload_dataset(dataset_id: str = "", flag: int = 0, delay: bool = True, broa
 @base.command
 @click.argument("dataset_id")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
 @handle_command_response
-def activate_dataset(dataset_id: str, delay: bool = True, broadcast: bool = True):
+def activate_dataset(dataset_id: str, delay: bool = True, broadcast: int = 1):
     """Activate a dataset"""
     from erddaputil.erddap.commands import activate_dataset
     return activate_dataset(dataset_id, flush=not delay, _broadcast=broadcast)
@@ -63,9 +67,11 @@ def activate_dataset(dataset_id: str, delay: bool = True, broadcast: bool = True
 @base.command
 @click.argument("dataset_id")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
 @handle_command_response
-def deactivate_dataset(dataset_id: str, delay: bool = True, broadcast: bool = True):
+def deactivate_dataset(dataset_id: str, delay: bool = True, broadcast: int = 1):
     """Deactivate a dataset"""
     from erddaputil.erddap.commands import deactivate_dataset
     return deactivate_dataset(dataset_id, flush=not delay, _broadcast=broadcast)
@@ -75,9 +81,11 @@ def deactivate_dataset(dataset_id: str, delay: bool = True, broadcast: bool = Tr
 @click.option("--skip/--fail", "-s/-f", default=True, help="Whether to skip (skip) or raise an error (fail) when a dataset's XML is invalid")
 @click.option("--reload-all", "-r", is_flag=True, default=False, help="Perform a soft reload on all datasets")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
 @handle_command_response
-def compile_datasets(skip: bool = True, reload_all: bool = False, delay: bool = True, broadcast: bool = True):
+def compile_datasets(skip: bool = True, reload_all: bool = False, delay: bool = True, broadcast: int = 1):
     """Compile datasets from a directory of datasets"""
     from erddaputil.erddap.commands import compile_datasets
     return compile_datasets(skip, reload_all, flush=not delay, _broadcast=broadcast)
@@ -86,9 +94,11 @@ def compile_datasets(skip: bool = True, reload_all: bool = False, delay: bool = 
 @base.command
 @click.argument("email")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
 @handle_command_response
-def block_email(email: str, delay: bool = True, broadcast: bool = True):
+def block_email(email: str, delay: bool = True, broadcast: int = 1):
     """Block subscription access to an email"""
     from erddaputil.erddap.commands import block_email
     return block_email(email, flush=not delay, _broadcast=broadcast)
@@ -97,9 +107,11 @@ def block_email(email: str, delay: bool = True, broadcast: bool = True):
 @base.command
 @click.argument("ip")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
 @handle_command_response
-def block_ip(ip: str, delay: bool = True, broadcast: bool = True):
+def block_ip(ip: str, delay: bool = True, broadcast: int = 1):
     """Block all requests from an IP address"""
     from erddaputil.erddap.commands import block_ip
     return block_ip(ip, flush=not delay, _broadcast=broadcast)
@@ -108,9 +120,11 @@ def block_ip(ip: str, delay: bool = True, broadcast: bool = True):
 @base.command
 @click.argument("ip")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
 @handle_command_response
-def allow_unlimited(ip: str, delay: bool = True, broadcast: bool = True):
+def allow_unlimited(ip: str, delay: bool = True, broadcast: int = 1):
     """Allow unlimited access by an IP address"""
     from erddaputil.erddap.commands import allow_unlimited
     return allow_unlimited(ip, flush=not delay, _broadcast=broadcast)
@@ -119,9 +133,11 @@ def allow_unlimited(ip: str, delay: bool = True, broadcast: bool = True):
 @base.command
 @click.argument("email")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
 @handle_command_response
-def unblock_email(email: str, delay: bool = True, broadcast: bool = True):
+def unblock_email(email: str, delay: bool = True, broadcast: int = 1):
     """Block subscription access to an email"""
     from erddaputil.erddap.commands import unblock_email
     return unblock_email(email, flush=not delay, _broadcast=broadcast)
@@ -130,9 +146,11 @@ def unblock_email(email: str, delay: bool = True, broadcast: bool = True):
 @base.command
 @click.argument("ip")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
 @handle_command_response
-def unblock_ip(ip: str, delay: bool = True, broadcast: bool = True):
+def unblock_ip(ip: str, delay: bool = True, broadcast: int = 1):
     """Block all requests from an IP address"""
     from erddaputil.erddap.commands import unblock_ip
     return unblock_ip(ip, flush=not delay, _broadcast=broadcast)
@@ -141,9 +159,11 @@ def unblock_ip(ip: str, delay: bool = True, broadcast: bool = True):
 @base.command
 @click.argument("ip")
 @click.option("--delay/--no-delay", "-d/-i", default=True, help="Whether to delay the action (using configured delays) or immediately push the change.")
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
 @handle_command_response
-def remove_unlimited(ip: str, delay: bool = True, broadcast: bool = True):
+def remove_unlimited(ip: str, delay: bool = True, broadcast: int = 1):
     """Allow unlimited access by an IP address"""
     from erddaputil.erddap.commands import unallow_unlimited
     return unallow_unlimited(ip, flush=not delay, _broadcast=broadcast)
@@ -160,8 +180,10 @@ def set_password(username: str, password: str, ac: AuthChecker = None):
 
 
 @base.command
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
-def flush_logs(broadcast: bool = True):
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
+def flush_logs(broadcast: int = 1):
     """Flush the ERDDAP logs to disk."""
     from erddaputil.erddap.commands import flush_logs
     return flush_logs(broadcast)
@@ -176,8 +198,10 @@ def list_datasets():
 
 @base.command
 @click.argument("dataset_id", default="")
-@click.option("--broadcast/--no-broadcast", "-C/-L", default=True, help="Whether to broadcast this command via AMPQ to all servers in the cluster (if configured)")
-def clear_cache(dataset_id: str, broadcast: bool = True):
+@click.option("--no-broadcast", "-L", "broadcast", flag_value=0, default=False, help="Prevent broadcasting this message")
+@click.option("--broadcast", "-C", "broadcast", flag_value=1, default=True, help="Broadcast this message to the cluster")
+@click.option("--global", "-G", "broadcast", flag_value=2, default=False, help="Broadcast this message globally")
+def clear_cache(dataset_id: str, broadcast: int = 1):
     """Clear the decompressed folder for ERDDAP."""
     from erddaputil.erddap.commands import clear_erddap_cache
     return clear_erddap_cache(dataset_id, broadcast)

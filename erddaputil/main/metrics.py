@@ -110,7 +110,7 @@ class LocalPrometheusSendThread(BaseThread):
 
     @injector.construct
     def __init__(self):
-        super().__init__("erddaputil.main.metrics.localprom")
+        super().__init__("erddaputil.main.metrics.localprom", 1)
         self.messages = queue.SimpleQueue()
 
         host = self.config.as_str(("erddaputil", "localprom", "host"), default="localhost")
@@ -124,11 +124,11 @@ class LocalPrometheusSendThread(BaseThread):
         self._headers = {
             "Authorization": f"basic {base64.b64encode(unpw.encode('utf-8')).decode('ascii')}"
         }
-        self._max_concurrent_tasks = self.config.as_int(("erddaputil", "localprom", "max_tasks"), default=10)
+        self._max_concurrent_tasks = self.config.as_int(("erddaputil", "localprom", "max_tasks"), default=5)
         self._max_messages_to_send = self.config.as_int(("erddaputil", "localprom", "batch_size"), default=200)
         self._message_wait_time = self.config.as_float(("erddaputil", "localprom", "batch_wait_seconds"), default=2)
         self._max_retries = self.config.as_int(("erddaputil", "localprom", "max_retries"), default=3)
-        self._retry_delay = self.config.as_float(("erddaputil", "localprom", "retry_delay_seconds"), default=1)
+        self._retry_delay = self.config.as_float(("erddaputil", "localprom", "retry_delay_seconds"), default=2)
         self._active_tasks = []
 
     def send_message(self, metric: _Metric) -> bool:
@@ -194,26 +194,25 @@ class LocalPrometheusSendThread(BaseThread):
         # If we are crashing, prevent a lot of retries
         if self._halt.is_set():
             self._max_retries = 1
-        retries = self._max_retries
-        retry_forever = self._max_retries == 0
-        while retry_forever or retries > 0:
+        tries_left = max(0, self._max_retries) + 1
+        retry_forever = self._max_retries < 0
+        while retry_forever or tries_left > 0:
             try:
                 async with session.post(self._endpoint, json=json_data, headers=self._headers) as resp:
-                    resp.raise_for_status()
                     info = await resp.json()
-                    if not ('success' in info and info["success"]):
-                        for error in info["errors"]:
-                            self._log.warning(f"Error from web API for metrics: {error}, retries: [{retries if not retry_forever else 'inf'}]")
-                        if retries > 0:
-                            retries -= 1
-                        if self._halt.is_set():
+                    if 'success' in info:
+                        if info['success']:
+                            return True
+                        else:
+                            for error in info["errors"]:
+                                self._log.warning(f"Error from web API for metrics: {error}, metric discarded")
                             break
-                    else:
-                        return True
+                    raise Exception("Unrecognized response from server")
             except Exception:
-                retries -= 1
-                self._log.exception(f"Exception while sending metrics, retries: [{retries if not retry_forever else 'inf'}]")
-                await asyncio.sleep(self._retry_delay)
+                tries_left -= 1
+                self._log.exception(f"Exception while sending metrics, retries: [{tries_left if not retry_forever else 'inf'}]")
+                if retry_forever or tries_left > 0:
+                    await asyncio.sleep(self._retry_delay)
         self._log.error(f"Failure to send {len(metrics)} metrics, see logs for more details")
         return False
 

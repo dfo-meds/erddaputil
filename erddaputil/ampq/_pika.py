@@ -8,7 +8,7 @@ from .ampq import AmpqHandler
 class PikaHandler(AmpqHandler):
     """Handles sending and receiving using the pika library."""
 
-    def send_message(self, message: bytes) -> bool:
+    def send_message(self, message: bytes, send_global: bool = False) -> bool:
         """Send a message to the AMPQ exchange and return if it was successful."""
         conn = pika.BlockingConnection(parameters=pika.URLParameters(self.credentials))
         channel = conn.channel()
@@ -16,7 +16,7 @@ class PikaHandler(AmpqHandler):
         try:
             channel.basic_publish(
                 exchange=self.exchange_name,
-                routing_key=self.topic_name,
+                routing_key=self.topic_name if not send_global else self.global_name,
                 body=message,
                 properties=pika.BasicProperties(
                     content_type="text/plain",

@@ -10,14 +10,14 @@ from azure.core.exceptions import ResourceExistsError
 class AzureServiceBusHandler(AmpqHandler):
     """Implement AMPQ handling for AzureServiceBus."""
 
-    def send_message(self, message: bytes) -> bool:
+    def send_message(self, message: bytes, send_global: bool = False) -> bool:
         """Send a message to the AMPQ exchange and return if it was successful."""
         try:
             client = sb.ServiceBusClient.from_connection_string(self.credentials)
             with client:
                 sender = client.get_topic_sender(self.exchange_name)
                 with sender:
-                    message = sb.ServiceBusMessage(message, subject=self.topic_name)
+                    message = sb.ServiceBusMessage(message, subject=self.topic_name if not send_global else self.global_name)
                     sender.send_messages(message)
                     return True
         except sbe.ServiceBusError as ex:

@@ -26,6 +26,8 @@ def time_with_errors(summary: Summary):
                 res = fn(*args, **kwargs)
                 if isinstance(res, dict) and 'success' in res and not res['success']:
                     state = 'error'
+                elif isinstance(res, tuple) and isinstance(res[0], dict) and 'success' in res[0] and not res[0]['success']:
+                    state = 'error'
                 return res
             except Exception as ex:
                 state = 'error'

@@ -69,13 +69,13 @@ base_url = ""
 
 [erddaputil.dataset_manager]
 ## Maximum number of datasets that can be pending reload at once
-# max_pending = 2
+# max_pending = 0
 
 ## Maxumum delay in seconds that a dataset will wait for additional reloads to be sent.
-# max_delay_seconds = 10
+# max_delay_seconds = 0
 
 ## Maximum delay in seconds that a request to recompile will wait
-# max_recompile_delay_seconds = 15
+# max_recompile_delay_seconds = 0
 
 ## If set to false, a poorly formed XML document will cause the recompile process to abort.
 ## Otherwise, the file is simply omitted and a warning emitted.
@@ -85,7 +85,7 @@ base_url = ""
 backups = ""
 
 ## Number of days to keep the backups
-# backup_retention_days = 30
+# backup_retention_days = 31
 
 [erddaputil.daemon]
 ## Socket connection address for the ERDDAP management daemon
@@ -204,19 +204,16 @@ password = ""
 # max_tasks = 5
 
 ## Maximum number of metric changes to push in one batch
-# batch_size = 10
+# batch_size = 200
 
 ## Maximum number of seconds to wait for more metric changes
-# batch_wait_seconds = 1
+# batch_wait_seconds = 2
 
 ## Maximum number of times to retry pushing the metrics
-# max_retries = 5
+# max_retries = 3
 
 ## Delay in between retries
-# retry_delay_seconds = 15
-
-## Delay in checking for new messages (sleep time)
-# delay_seconds = 0.25
+# retry_delay_seconds = 2
 
 
 [erddaputil.status_scraper]
@@ -224,8 +221,9 @@ password = ""
 ## Set to false to disable scraping the status page to Prometheus metrics
 # enabled = true
 
-##
-memory_path = ""
+## Set to the path of a file to store information about the last scrape of status.html
+## Defaults to {BIG_PARENT_DIRECTORY/.erddaputil_status_scraper_memory
+# memory_path = ""
 
 ## Change the default time between scraps
 # sleep_time_seconds = 300

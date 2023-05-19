@@ -42,14 +42,14 @@ class AmpqController:
             return CommandResponse("No AMPQ service configured", "error")
         try:
 
-            self.log.info(f"Sending command {cmd} over AMPQ")
+            self.log.info(f"Sending command {cmd} over AMPQ[{'global' if cmd.send_global else 'cluster'}]")
 
             # Ignore the current host, since we would have done this locally
             if ignore_current_host:
                 cmd.ignore_host(self.handler.hostname)
 
             # Actually send the message
-            self.handler.send_message(cmd.serialize().encode("utf-8"))
+            self.handler.send_message(cmd.serialize().encode("utf-8"), cmd.send_global)
 
             return CommandResponse("AMPQ request queued", "success")
 

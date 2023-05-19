@@ -28,11 +28,12 @@ class Serializer:
 class Command:
     """Represents a command being executed by the daemon."""
 
-    def __init__(self, name, *args, _broadcast: bool = True, _guid: str = None, **kwargs):
+    def __init__(self, name, *args, _broadcast: int = 1, _guid: str = None, **kwargs):
         self.name = name
         self.args = args or []
         self.kwargs = kwargs or {}
-        self.allow_broadcast = _broadcast
+        self.allow_broadcast = _broadcast > 0
+        self.send_global = _broadcast > 1
         self.ignore_on_hosts = []
         self.guid = _guid if _guid else str(uuid.uuid4())
 
@@ -115,7 +116,7 @@ class CommandAndControl:
         response = None
         if self._send_to_ampq and cmd.allow_broadcast and self.ampq_sender.is_valid:
             self._log.info(f"Sending {cmd} to AMPQ")
-            response = self.ampq_sender.send_command(cmd)
+            response = self.ampq_sender.send_command(cmd, self._send_to_local)
         if self._send_to_local:
             self._log.info(f"Sending {cmd} to local daemon")
             response = self.local_sender.send_command(cmd)

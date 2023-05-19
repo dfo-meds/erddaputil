@@ -42,12 +42,19 @@ class ErddapDatasetManager:
         self.datasets_directory = self.config.as_path(("erddaputil", "erddap", "datasets_d"), default=None)
         self.datasets_file = self.config.as_path(("erddaputil", "erddap", "datasets_xml"), default=None)
         self.backup_directory = self.config.as_path(("erddaputil", "dataset_manager", "backups"), default=None)
-        self._max_pending_reloads = self.config.as_int(("erddaputil", "dataset_manager", "max_pending"), default=2)
-        self._max_reload_delay = self.config.as_int(("erddaputil", "dataset_manager", "max_delay_seconds"), default=10)
-        self._max_recompilation_delay = self.config.as_int(("erddaputil", "dataset_manager", "max_recompile_delay_seconds"), default=15)
+        if self.backup_directory and not self.backup_directory.exists():
+            if self.backup_directory.parent.exists():
+                self.log.info(f"Creating backup directory {self.backup_directory}")
+                self.backup_directory.mkdir()
+            else:
+                self.log.warning(f"Parent directory of backup directory {self.backup_directory} does not exist, ignoring backup settings")
+                self.backup_directory = None
+        self._max_pending_reloads = self.config.as_int(("erddaputil", "dataset_manager", "max_pending"), default=0)
+        self._max_reload_delay = self.config.as_int(("erddaputil", "dataset_manager", "max_delay_seconds"), default=0)
+        self._max_recompilation_delay = self.config.as_int(("erddaputil", "dataset_manager", "max_recompile_delay_seconds"), default=0)
         self._skip_errored_datasets = self.config.as_bool(("erddaputil", "dataset_manager", "skip_misconfigured_datasets"), default=True)
         self._email_block_list_file = self.config.as_path(("erddaputil", "erddap", "subscription_block_list"), default=None)
-        self._backup_retention_days = self.config.as_int(("erddaputil", "dataset_manager", "backup_retention_days"), default=30)
+        self._backup_retention_days = self.config.as_int(("erddaputil", "dataset_manager", "backup_retention_days"), default=31)
         self._ip_block_list_file = self.config.as_path(("erddaputil", "erddap", "ip_block_list"), default=None)
         self._unlimited_allow_list_file = self.config.as_path(("erddaputil", "erddap", "unlimited_allow_list"), default=None)
         self.hostname = self.config.as_str(("erddaputil", "ampq", "hostname"), default=None)
