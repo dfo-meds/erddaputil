@@ -33,7 +33,7 @@ then the ``status`` label is also included with the status code.
 
 Output Files
 ^^^^^^^^^^^^
-By setting :conf:`erddaputil.tomtail.output_directory`, all requests parsed from Tomcat logs will
+By setting :confval:`erddaputil.tomtail.output_directory`, all requests parsed from Tomcat logs will
 be written to a file in the given directory. :conf:`erddaputil.tomtail.output_file_pattern` controls
 the file name that will be written to; log files are rotated when the file pattern changes. ``strftime``
 is used to format the file name. By default, output files are cleaned up by ``logman``.
