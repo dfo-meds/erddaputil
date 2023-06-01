@@ -57,6 +57,7 @@ def _config(app: zr.ApplicationConfig):
         "ERDDAPUTIL_LOGMAN_ENABLED": ("erddaputil", "logman", ",enabled"),
         "ERDDAPUTIL_LOGMAN_RETENTION_DAYS": ("erddaputil", "logman", ",retention_days"),
         "ERDDAPUTIL_LOGMAN_SLEEP_TIME_SECONDS": ("erddaputil", "logman", ",sleep_time_seconds"),
+        "ERDDAPUTIL_LOGMAN_INCLUDE_TOMCAT": ("erddaputil", "logman", "include_tomcat"),
         "ERDDAPUTIL_AMPQ_CLUSTER_NAME": ("erddaputil", "ampq", ",cluster_name"),
         "ERDDAPUTIL_AMPQ_HOSTNAME": ("erddaputil", "ampq", ",hostname"),
         "ERDDAPUTIL_AMPQ_CONNECTION": ("erddaputil", "ampq", ",connection"),
@@ -86,8 +87,21 @@ def _config(app: zr.ApplicationConfig):
         "ERDDAPUTIL_STATUS_SCRAPER_SLEEP_TIME_SECONDS": ("erddaputil", "status_scraper", "sleep_time_seconds"),
         "ERDDAPUTIL_SHOW_CONFIG": ("erddaputil", "show_config"),
         "ERDDAPUTIL_FIX_ERDDAP_BPD_PERMISSIONS": ("erddaputil", "fix_erddap_bpd_permissions"),
-        "ERDDAPUTIL_ERDDAP_TOMCAT_UID": ("erddaputil", "tomcat_uid"),
-        "ERDDAPUTIL_ERDDAP_TOMCAT_GID": ("erddaputil", "tomcat_gid"),
+        "ERDDAPUTIL_TOMCAT_UID": ("erddaputil", "tomcat", "uid"),
+        "ERDDAPUTIL_TOMCAT_GID": ("erddaputil", "tomcat", "gid"),
+        "ERDDAPUTIL_TOMCAT_LOG_DIRECTORY": ("erddaputil", "tomcat", "log_directory"),
+        "ERDDAPUTIL_TOMCAT_LOG_PATTERN": ("erddaputil", "tomcat", "log_pattern"),
+        "ERDDAPUTIL_TOMCAT_LOG_PREFIX": ("erddaputil", "tomcat", "log_prefix"),
+        "ERDDAPUTIL_TOMCAT_LOG_SUFFIX": ("erddaputil", "tomcat", "log_suffix"),
+        "ERDDAPUTIL_TOMCAT_LOG_ENCODING": ("erddaputil", "tomcat", "log_encoding"),
+        "ERDDAPUTIL_TOMCAT_MAJOR_VERSION": ("erddaputil", "tomcat", "major_version"),
+        "ERDDAPUTIL_TOMTAIL_MEMORY_FILE": ("erddaputil", "tomtail", "memory_file"),
+        "ERDDAPUTIL_TOMTAIL_OUTPUT_FILE": ("erddaputil", "tomtail", "output_file"),
+        "ERDDAPUTIL_TOMTAIL_OUTPUT_PATTERN": ("erddaputil", "tomtail", "output_pattern"),
+        "ERDDAPUTIL_TOMTAIL_ENABLED": ("erddaputil", "tomtail", "enabled"),
+        "ERDDAPUTIL_TOMTAIL_SLEEP_TIME_SECONDS": ("erddaputil", "tomtail", "sleep_time_seconds"),
+
+
     })
 
 
@@ -128,11 +142,11 @@ class BaseApplication:
 
     def sig_handle(self, sig_num, frame):
         """Handle signals."""
-        self.log.info(f"Signal {sig_num} caught, halting")
+        self._log.info(f"Signal {sig_num} caught, halting")
         self._halt.set()
         self._break_count += 1
         if self._break_count >= 3:
-            self.log.critical(f"Program halting unexpectedly")
+            self._log.critical(f"Program halting unexpectedly")
             raise KeyboardInterrupt()
 
     def _register_halt_signal(self, sig_name):
@@ -153,14 +167,14 @@ class BaseApplication:
         try:
             self._startup()
             while not self._halt.is_set():
-                self.run()
+                self._run()
         except Exception:
             self._log.exception("Error during execution")
         finally:
             self._log.notice("Shutting down")
             self._shutdown()
 
-    def run(self):
+    def _run(self):
         self._halt.wait(0.5)
 
 
@@ -170,7 +184,7 @@ class BaseThread(threading.Thread):
     config: zr.ApplicationConfig = None
 
     @injector.construct
-    def __init__(self, log_name: str, loop_delay: float = 1, is_daemon: bool = True):
+    def __init__(self, log_name: str, loop_delay: float = 1, is_daemon: bool = False):
         super().__init__()
         self._log = zrlog.get_logger(log_name)
         self._halt = threading.Event()

@@ -35,7 +35,8 @@ The ERDDAP tools currently included are:
 * Adding and removing IP addresses from the allow unlimited requests list (see :doc:`/control_lists`)
 * Parsing the status.html page and creating Prometheus metrics from it (see :doc:`/erddap_metrics`)
 * Removing old log files from ERDDAP's logs directory (see :doc:`/log_management`)
-* Removing decompressed files from ERDDAP's decompressed directory (see :doc:`/dataset_manager`
+* Removing decompressed files from ERDDAP's decompressed directory (see :doc:`/dataset_manager`)
+* Managing statistics from Tomcat on ERDDAP requests (see :doc:`/tomtail`)
 
 The service is launched by calling the ERDDAPUtil Python module and it must be running for
 any of the other APIs to work.

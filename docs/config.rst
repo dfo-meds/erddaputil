@@ -151,7 +151,59 @@ ERDDAP Configuration
    A path to a text file of emails to block subscriptions for (one email per line). Defaults to
    ``{BIG_PARENT_DIRECTORY}/.email_block_list.txt``
 
-.. confval:: erddaputil.erddap.tomcat_gid
+.. confval:: erddaputil.erddap.unlimited_allow_list
+   :type: path
+   :required: False
+
+   A path to a text file of IP addresses, ranges, or subnets to allow unlimited access to (one entry
+   per line). Defaults to ``{BIG_PARENT_DIRECTORY}/.unlimited_allow_list.txt``
+
+Tomcat Configuration
+--------------------
+
+.. confval:: erddaputil.tomcat.log_directory
+   :type: str
+   :required: False
+
+   The directory where Tomcat's access logs are written to. If omitted, Tomcat log parsing and management
+   will be disabled.
+
+.. confval:: erddaputil.tomcat.log_prefix
+   :type: str
+   :default: ``access_log``
+   :required: False
+
+   The prefix for Tomcat's access log files (should match the setting in AccessLogValve).
+
+.. confval:: erddaputil.tomcat.log_suffix
+   :type: str
+   :required: False
+
+   The suffix for Tomcat's access log files (should match the setting in AccessLogValve).
+
+.. confval:: erddaputil.tomcat.log_pattern
+   :type: str
+   :default: ``common``
+   :required: False
+
+   The pattern for Tomcat's access log files (should match the setting in AccessLogValve).
+
+.. confval:: erddaputil.tomcat.log_encoding
+   :type: str
+   :default: ``utf-8``
+   :required: False
+
+   The encoding for Tomcat's access log files (should match the setting in AccessLogValve).
+
+.. confval:: erddaputil.tomcat.major_version
+   :type: int
+   :default: ``10``
+   :required: False
+
+   The major version of Tomcat in use. What is most important is that this is 10 or higher on Tomcat 10+ and under 10
+   on versions under 10 as this affects how some log strings are parsed.
+
+.. confval:: erddaputil.tomcat.gid
    :type: int
    :default: ``1000``
    :required: False
@@ -159,7 +211,7 @@ ERDDAP Configuration
    The group ID that tomcat runs as. This is used only if ``erddaputil.fix_erddap_bpd_permissions`` is
    set to ``true``.
 
-.. confval:: erddaputil.erddap.tomcat_uid
+.. confval:: erddaputil.tomcat.uid
    :type: int
    :default: ``1000``
    :required: False
@@ -167,12 +219,6 @@ ERDDAP Configuration
    The user ID that tomcat runs as. This is used only if ``erddaputil.fix_erddap_bpd_permissions`` is
    set to ``true``.
 
-.. confval:: erddaputil.erddap.unlimited_allow_list
-   :type: path
-   :required: False
-
-   A path to a text file of IP addresses, ranges, or subnets to allow unlimited access to (one entry
-   per line). Defaults to ``{BIG_PARENT_DIRECTORY}/.unlimited_allow_list.txt``
 
 Dataset Management
 ------------------
@@ -263,6 +309,91 @@ Log Management
    :required: False
 
    Number of seconds to wait between log clean-up jobs.
+
+.. confval:: erddaputil.logman.include_tomcat
+   :type: bool
+   :default: ``false``
+
+   Whether to cleanup tomcat log files.
+
+.. confval:: erddaputil.logman.include_tomtail
+   :type: bool
+   :default: ``true``
+
+   Whether to cleanup tomtail output files.
+
+.. confval:: erddaputil.logman.include_erddap
+   :type: bool
+   :default: ``true``
+
+   Whether to cleanup ERDDAP log files.
+
+
+Tomcat Log Parsing
+------------------
+
+.. confval:: erddaputil.logman.enabled
+   :type: bool
+   :default: ``true``
+   :required: False
+
+   Set to ``false`` to disable log parsing.
+
+
+.. confval:: erddaputil.logman.sleep_time_seconds
+   :type: float
+   :default: ``3600``
+   :required: False
+
+   Number of seconds to wait between checking the log files.
+
+.. confval:: erddaputil.logman.memory_file
+   :type: str
+   :default: ``./.tomtail.mem``
+   :required: False
+
+   File to save information about the tomcat logs to.
+
+.. confval:: erddaputil.logman.output_directory
+   :type: str
+   :required: False
+
+   Set to a directory to write output files to.
+
+.. confval:: erddaputil.logman.output_file_pattern
+   :type: str
+   :default: ``erddap_access_log_%Y%m%d.log``
+   :required: False
+
+   Used as a parameter to ``strftime`` to format the name of the output file.
+   Log files are rotated based on this value returning a different value.
+
+.. confval:: erddaputil.logman.output_pattern
+   :type: str
+   :default: ``%dataset_id %request_type %s %b %T "%U%q"``
+   :required: False
+
+   Used to format the output string for the output files. All placeholders below will return "-" if not available in
+   the logs. The
+
+   .. csv-table:: Output Pattern Placeholders
+      :header: "Placeholder","Value"
+
+      %a,Remote IP (see tomcat docs)
+      %U,Request URI (see tomcat docs)
+      %T,Request processing time in seconds (see tomcat docs)
+      %s,Request status (see tomcat docs)
+      %r,Request first line (see tomcat docs)
+      %q,Query string (see tomcat docs)
+      %m,Request method (see tomcat docs)
+      %h,Host (see tomcat docs)
+      %b,Bytes (see tomcat docs for %B)
+      %(request_type)s,"Either ``web`` (default), ``data`` (for data downloads), or ``metadata`` (metadata downloads)"
+      %(dataset_id)s,"The ID of the dataset or - if not detected."
+      %(dap_variables)s,"A semi-colon delimited list of DAP variable names included in the request"
+      %(dap_constraints)s,"An ampersand delimited list of DAP constraints included in the request"
+      %(dap_grid_bounds)s,"A semi-colon delimited list of bounds on a griddap request for ERDDAP"
+
 
 AMPQ Integration
 ----------------
@@ -450,11 +581,11 @@ Status Scraper
 
 .. confval:: erddaputil.status_scraper.memory_path
    :type: path
+   :default: ``./.status_scrape.mem``
    :required: False
 
    Set the path of a file where information about the last scrape of status.html
-   is stored. Defaults to a location under ERDDAP's ``bigParentDirectory`` if set,
-   otherwise you must provide one.
+   is stored.
 
 .. confval:: erddaputil.status_scraper.sleep_time_seconds
    :type: float

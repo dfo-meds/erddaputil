@@ -145,3 +145,36 @@ lists, such as the peppers.
     username = "admin"
     password = "admin"
 
+Pip Installation
+----------------
+ERDDAPUtil can also be installed as a Python module from pip:
+
+.. code-block:: Shell
+
+   python -m pip install erddaputil
+
+
+Configuration for the Python module is in the file ``.erddaputil.toml`` in either the user's
+home directory or the current working directory. Configuration can also be done via environment
+variables.
+
+The Python module includes the CLI as well as the daemon, webapp, and AMPQ listener which can
+be called by the module:
+
+.. code-block:: Shell
+
+   # Daemon launching
+   python -m erddaputil daemon
+
+   # Web app (you need extras)
+   python -m pip install erddaputil[webapp]
+   python -m erddaputil webapp
+
+   # AMPQ listener (you need extras)
+   python -m pip install erddaputil[asb]
+   # OR
+   python -m pip install erddaputil[rabbitmq]
+   python -m erddaputil ampq
+
+   # CLI interface
+   python -m erddaputil cli [CLI ARGS AND OPTIONS]

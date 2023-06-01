@@ -7,6 +7,7 @@ from erddaputil.erddap.parsing import ErddapStatusParser
 import functools
 import json
 import time
+import pathlib
 
 
 class ErddapStatusScraper(BaseThread):
@@ -19,17 +20,10 @@ class ErddapStatusScraper(BaseThread):
         super().__init__("erddaputil.scraper")
         self.status_scraper_memory_file = self.config.as_path(('erddaputil', 'status_scraper', 'memory_path'), default=None)
         if self.status_scraper_memory_file and not self.status_scraper_memory_file.parent.exists():
-            self._log.warning(f"Status scraper memory file directory {self.status_scraper_memory_file} does not exist, checking for default file...")
+            self._log.warning(f"Status scraper memory file directory {self.status_scraper_memory_file} does not exist, using default")
             self.status_scraper_memory_file = None
         if not self.status_scraper_memory_file:
-            self.status_scraper_memory_file = self.config.as_path(("erddaputil", "erddap", "big_parent_directory"), default=None)
-            if self.status_scraper_memory_file and self.status_scraper_memory_file.exists():
-                self.status_scraper_memory_file = self.status_scraper_memory_file / ".erddaputil_status_scraper_memory"
-                self._log.info(f"Using default location for status scraper: {self.status_scraper_memory_file}")
-            else:
-                self.status_scraper_memory_file = None
-        if not self.status_scraper_memory_file:
-            self._log.warning(f"Memory file not set for status scraper, metrics may become corrupt when ERDDAPUtil is restarted without restarting ERDDAP as well!")
+            self.status_scraper_memory_file = pathlib.Path(".").absolute() / ".status_scrape.mem"
         self.base_url = self.config.as_str(("erddaputil", "erddap", "base_url"), default=None)
         if self.base_url and self.base_url.endswith("/"):
             self.base_url += "status.html"
@@ -54,13 +48,19 @@ class ErddapStatusScraper(BaseThread):
 
     def _load_remember(self):
         if self.status_scraper_memory_file and self.status_scraper_memory_file.exists():
+            self._log.debug(f"Loading memory file from {self.status_scraper_memory_file}")
             with open(self.status_scraper_memory_file, "r") as h:
                 self._remember = json.loads(h.read())
+        else:
+            self._log.debug(f"Memory file {self.status_scraper_memory_file} does not exist")
 
     def _save_remember(self):
         if self.status_scraper_memory_file:
+            self._log.debug(f"Saving memory file for scraper to {self.status_scraper_memory_file}")
             with open(self.status_scraper_memory_file, "w") as h:
                 h.write(json.dumps(self._remember))
+        else:
+            self._log.debug(f"No memory file configured for status scraper")
 
     def _run(self, *args, **kwargs):
         if not self.enabled:
@@ -84,6 +84,9 @@ class ErddapStatusScraper(BaseThread):
             return False
         esp = ErddapStatusParser()
         esp.parse(resp.text)
+
+        if self._halt.is_set():
+            return None
 
         mb_to_int = functools.partial(self._remove_units, scale_factor=1024*1024)
 

@@ -1,9 +1,424 @@
 """ERDDAP parsing """
 import enum
-import datetime
 from urllib.parse import unquote_plus
 from bs4 import BeautifulSoup
 import typing as t
+import re
+import datetime
+from urllib.parse import unquote
+import zrlog
+
+COMMON_FORMAT = "%h %l %u %t \"%r\" %s %b"
+COMBINED_FORMAT = "%h %l %u %t \"%r\" %s %b \"%{Referer}\" \"%{User-Agent}\""
+
+
+class TomcatLog:
+
+    def __init__(self, mapping: dict, tomcat_major_version: int = 10):
+        self._tomcat_version = tomcat_major_version
+        self._mapping = mapping
+
+    def __str__(self):
+        return '\n'.join(f'{key}: {self._mapping[key]}' for key in self._mapping)
+
+    def value(self, flag, default=None, hyphen_to_default: bool = False, blank_to_default: bool = True, coerce = None):
+        if flag not in self._mapping:
+            return default
+        if hyphen_to_default and self._mapping[flag] == "-":
+            return default
+        if flag in self._mapping and self._mapping[flag] is None or self._mapping[flag] == "":
+            return default
+        return self._mapping[flag] if coerce is None else coerce(self._mapping[flag])
+
+    def ivalue(self, flag, default=None, hyphen_to_default: bool = False, blank_to_default: bool = True, coerce = None):
+        for n in self._mapping:
+            if flag.lower() == n.lower():
+                return self.value(n, default, hyphen_to_default, blank_to_default, coerce)
+        return default
+
+    def bytes_sent(self):
+        bytes = self.value('%b', hyphen_to_default=True, coerce=int)
+        if bytes is None:
+            bytes = self.value('%B', coerce=int)
+        return bytes
+
+    def remote_ip(self):
+        return self.value('%a')
+
+    def local_ip(self):
+        return self.value('%A')
+
+    def remote_host(self):
+        return self.value('%h')
+
+    def request_protocol(self):
+        return self.value('%H')
+
+    def thread_name(self):
+        return self.value('%I')
+
+    def http_version(self):
+        _, _, version = self._parse_request_line()
+        return version
+
+    def _parse_request_line(self) -> tuple[str, str, str]:
+        v = self.request()
+        if v.count(' ') == 2:
+            return v.split(' ', maxsplit=2)
+        else:
+            return None, None, None
+
+    def extension(self):
+        uri = self.request_uri()[8:]
+        if '/' not in uri:
+            return None
+        last_piece = uri[uri.rfind('/')+1:]
+        if '.' in last_piece:
+            return last_piece[last_piece.rfind('.')+1:].lower()
+        return None
+
+    def request_method(self):
+        method = self.value('%m')
+        if method is None:
+            method, _, _ = self._parse_request_line()
+        return method
+
+    def request_port(self):
+        return self.value('%p')
+
+    def request_query(self):
+        val = self.value('%q')
+        if val is None:
+            _, val, _ = self._parse_request_line()
+            if val and '?' in val:
+                val = val[val.find('?'):]
+            else:
+                val = ""
+        return val
+
+    def parsed_query(self):
+        query = self.request_query()
+        if not query:
+            return {}
+        query_parameters = {}
+        pieces = query[1:].split('&')
+        for piece in pieces:
+            if '=' in piece:
+                key, val = piece.split('=', maxsplit=1)
+            else:
+                key, val = piece, None
+            if key in query_parameters:
+                if not isinstance(query_parameters, list):
+                    query_parameters[key] = list[query_parameters[key]]
+                query_parameters[key].append(val)
+            else:
+                query_parameters[key] = val
+        return query_parameters
+
+    def request(self):
+        return self.value('%r')
+
+    def status_code(self):
+        s = self.value('%s')
+        if s is None:
+            return self.value('%>s')
+        else:
+            return s
+
+    def session_id(self):
+        return self.value('%S')
+
+    def request_time(self):
+        dt = self.value('%t')
+        return datetime.datetime.strptime(dt, '%d/%b/%y:%H:%M:%S %z') if dt else None
+
+    def request_processing_time_ms(self):
+        d_flag = self.value('%D', coerce=float)
+        if d_flag is not None:
+            return d_flag if self._tomcat_version < 10 else (d_flag / 1000)
+        else:
+            t_flag = self.value('%T', coerce=float)
+            if t_flag is not None:
+                return t_flag if self._tomcat_version < 10 else (t_flag * 1000)
+            return None
+
+    def request_commit_time_ms(self):
+        return self.value('%F')
+
+    def remote_user(self):
+        return self.value('%u')
+
+    def request_uri(self):
+        val = self.value('%U')
+        if val is None:
+            _, val, _ = self._parse_request_line()
+            if val and '?' in val:
+                val = val[0:val.find('?')]
+        return val
+
+    def server_name(self):
+        return self.value('%v')
+
+    def connection_status(self):
+        return self.value('%X')
+
+    def header_received(self, header_name: str):
+        return self.ivalue(f'%{header_name.lower()}i')
+
+    def header_sent(self, header_name: str):
+        return self.ivalue(f'%{header_name.lower()}o')
+
+    def cookie_sent(self, cookie_name: str):
+        return self.ivalue(f'%{cookie_name.lower()}c')
+
+    def placeholders(self) -> dict:
+        pt = self.request_processing_time_ms()
+        return {
+            '%a': self.remote_ip() or "-",
+            '%b': self.bytes_sent() or '-',
+            '%U': self.request_uri() or "-",
+            '%T': (pt / 1000.0) if pt is not None else "-",
+            '%s': self.status_code() or "-",
+            '%r': self.request() or "-",
+            '%q': self.request_query() or "-",
+            '%m': self.request_method() or "-",
+            '%h': self.remote_host() or "-",
+        }
+
+
+class TomcatLogParser:
+
+    RAW_SLASH = f'{chr(26)}{chr(17)}'
+    RAW_QUOTE = f'{chr(26)}{chr(18)}'
+
+    def __init__(self, log_formats=None, tomcat_major_version: int = 10, encoding="utf-8"):
+        self._tomcat_version = tomcat_major_version
+        self._encoding = encoding
+        self.log_formats = []
+        self.log = zrlog.get_logger("erddaputil.erddap.parsing.tomcat")
+        if log_formats is None:
+            self.log_formats = [COMMON_FORMAT]
+        elif isinstance(log_formats, str):
+            if log_formats == 'common':
+                self.log_formats = [COMMON_FORMAT]
+            elif log_formats == 'combined':
+                self.log_formats = [COMBINED_FORMAT]
+            else:
+                self.log_formats = [log_formats]
+        else:
+            for lf in log_formats:
+                if lf == 'common':
+                    self.log_formats.append(COMMON_FORMAT)
+                elif lf == 'combined':
+                    self.log_formats.append(COMBINED_FORMAT)
+                else:
+                    self.log_formats.append(lf)
+        self.regex_options = [
+            self._build_regex(lf) for lf in self.log_formats
+        ]
+
+    def _build_regex(self, lf: str):
+        pieces = lf.split(" ")
+        regex_pieces = []
+        for piece in lf.split(" "):
+            if not piece:
+                regex_pieces.append((' ', {'raw': True}))
+            if '%' not in piece:
+                regex_pieces.append((piece, {'raw': True}))
+            elif piece == '%t':
+                regex_pieces.append((piece, {'escape': ']', 'prefix': '[', 'suffix': ']', 'raw': False}))
+            elif piece[0] == '"' and piece[-1] == '"':
+                regex_pieces.append((piece[1:-1], {'escape': '"', 'prefix': '"', 'suffix': '"', 'raw': False}))
+            elif piece[0] == "'" and piece[-1] == "'":
+                regex_pieces.append((piece[1:-1], {'escape': "'", 'prefix': "'", 'suffix': "'", 'raw': False}))
+            else:
+                regex_pieces.append((piece, {'escape': ' ', 'raw': False, 'prefix': '', 'suffix': ''}))
+        regex = re.compile(' '.join(self._build_regex_piece(*x) for x in regex_pieces))
+        groups = [r[0] for r in regex_pieces if not r[1]['raw']]
+        self.log.debug(f"Tomcat log regex loaded [{regex.pattern}]")
+        return regex, groups
+
+    def _build_regex_piece(self, piece, options):
+        if options['raw']:
+            return re.escape(piece)
+        else:
+            return re.escape(options['prefix']) + '([^' + re.escape(options['escape']) + ']*)' + re.escape(options['suffix'])
+
+    def parse_line(self, line):
+        line = line.replace('\\\\', self.RAW_SLASH).replace('\\"', self.RAW_QUOTE)
+        for regex, groups in self.regex_options:
+            match = regex.match(line)
+            if not match:
+                continue
+            values = [
+                x.replace(self.RAW_SLASH, '\\').replace(self.RAW_QUOTE, '"')
+                for x in match.groups()
+            ]
+            return TomcatLog(dict(zip(groups, values)), self._tomcat_version)
+        else:
+            self.log.warning(f"Line not parseable: {line}")
+
+    def parse(self, content):
+        if isinstance(content, bytes):
+            content = content.decode(self._encoding)
+        for line in content.split("\n"):
+            if line:
+                res = self.parse_line(line)
+                if res:
+                    yield res
+
+
+class DapQuery:
+
+    def __init__(self, variables, constraints, grid_bounds):
+        self.variables = variables
+        self.constraints = constraints
+        self.grid_bounds = grid_bounds
+
+    def __str__(self):
+        sep = '\n  '
+        return f"""variables: 
+  {sep.join(self.variables)}
+constraints: 
+  {sep.join(self.constraints)}
+grid_bounds: 
+  {sep.join(self.grid_bounds)}
+"""
+
+    @staticmethod
+    def parse_dap_query(log: TomcatLog):
+        query = log.request_query()
+        if not query:
+            return [], []
+        query = query[1:]
+        dimensions = ""
+        if '&' in query:
+            projection = DapQuery._parse_dap_projection(query[:query.find('&')])
+            constraints = [DapQuery._parse_dap_constraint(c) for c in query[query.find('&')+1:].split('&')]
+        else:
+            projection = DapQuery._parse_dap_projection(query)
+            constraints = []
+        if projection and projection[0] and '[' in projection[0]:
+            _projection = []
+            for x in projection:
+                dimensions = x[x.find('['):]
+                _projection.append(x[:x.find('[')])
+            projection = _projection
+            dimensions = [x.strip('[]') for x in dimensions.split('][')]
+        return DapQuery(projection, constraints, dimensions)
+
+    @staticmethod
+    def _parse_dap_constraint(constraint):
+        constraint = unquote(constraint)
+        return constraint
+
+    @staticmethod
+    def _parse_dap_projection(projection):
+        projection = unquote(projection)
+        return projection.split(',')
+
+    def placeholders(self):
+        return {
+            '%(dap_variables)s': ';'.join(self.variables) if self.variables else '-',
+            '%(dap_constraints)s': '&'.join(self.constraints) if self.constraints else '-',
+            '%(dap_grid_bounds)s': ';'.join(self.grid_bounds) if self.grid_bounds else '-'
+        }
+
+    @staticmethod
+    def empty_placeholders():
+        return {
+            '%(dap_variables)s': '-',
+            '%(dap_constraints)s': '-',
+            '%(dap_grid_bounds)s': '-'
+        }
+
+
+class ErddapAccessLogEntry:
+
+    def __init__(self, tomcat_log: TomcatLog, dataset_id: str = None, request_type: str = 'web', dap_query: DapQuery = None):
+        self.dataset_id = dataset_id
+        self.tomcat_log = tomcat_log
+        self.request_type = request_type
+        self.dap_query = dap_query
+
+    def placeholders(self) -> dict:
+        base = {
+            '%(request_type)s': self.request_type,
+            '%(dataset_id)s': self.dataset_id or "-"
+        }
+        base.update(self.tomcat_log.placeholders())
+        if self.dap_query:
+            base.update(self.dap_query.placeholders())
+        else:
+            base.update(DapQuery.empty_placeholders())
+        return base
+
+
+class ErddapLogParser(TomcatLogParser):
+
+    HTML_PAGES = ['html', 'graph', 'help', 'subset']
+    METADATA_PAGES = ['das', 'dds', 'fgdc', 'iso19115', 'ncHeader', 'ncml', 'nccsvMetadata', 'timeGaps', 'ncCFHeader', 'ncCFMAHeader']
+
+    def parse_chunks(self, handle, chunk_size: int = 102400, flag = None):
+        chunk = ''
+        more = True
+        while more:
+            more = False
+            new = handle.read(chunk_size)
+            if new:
+                more = True
+                chunk += new
+                if '\n' in chunk:
+                    pos = chunk.rfind("\n")
+                    current_chunk = chunk[:pos]
+                    chunk = chunk[pos+1:]
+                    for log in self.parse(current_chunk):
+                        yield log
+            if flag and flag.is_set():
+                break
+        if chunk:
+            handle.seek(-1 * len(chunk), 1)
+
+    def parse(self, content):
+        for log in super().parse(content):
+
+            # This has NO query string
+            uri = log.request_uri()
+
+            # Parse out the dataset_id
+            dataset_id = None
+            if '/tabledap/' in uri:
+                dataset_id = self._extract_dataset_name(uri[uri.find('/tabledap/')+10:])
+            elif '/griddap/' in uri:
+                dataset_id = self._extract_dataset_name(uri[uri.find('/griddap/') + 9:])
+
+            # These are actually requests for documentation on griddap or table dap
+            if dataset_id == 'documentation':
+                dataset_id = None
+
+            # Identify the request type
+            request_type = 'web'
+            if dataset_id is not None:
+                request_type = 'data'
+                ext = log.extension()
+                if ext in ErddapLogParser.HTML_PAGES:
+                    request_type = 'web'
+                elif ext in ErddapLogParser.METADATA_PAGES:
+                    request_type = 'metadata'
+
+            # Build DAP query if applicable
+            dap = None
+            if request_type == 'data':
+                dap = DapQuery.parse_dap_query(log)
+
+            yield ErddapAccessLogEntry(log, dataset_id, request_type, dap)
+
+    def _extract_dataset_name(self, path_suffix):
+        if '/' in path_suffix:
+            path_suffix = path_suffix[:path_suffix.find('/')]
+        if '.' in path_suffix:
+            path_suffix = path_suffix[:path_suffix.find('.')]
+        return path_suffix
 
 
 class ParserState(enum.Enum):
@@ -47,7 +462,7 @@ class ErddapRequest:
         self.other_lines = []
 
 
-class ErddapLogParser:
+class _ErddapInternalLogParser:
     """Parser for log.txt"""
 
     def __init__(self):
@@ -232,7 +647,7 @@ class ErddapLogParser:
                 request.extras["handler"] = pieces[0]
                 for piece in pieces:
                     if "=" in piece:
-                        k, v= piece.split("=", maxsplit=1)
+                        k, v = piece.split("=", maxsplit=1)
                         request.extras[k] = v
                 request.extras["extension"] = pieces[-1]
             elif line.startswith("redirected to"):

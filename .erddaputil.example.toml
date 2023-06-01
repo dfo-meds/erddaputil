@@ -1,5 +1,3 @@
-
-
 [erddaputil]
 ## ERDDAPUtil can send messages to modify the ERDDAP configuration either via
 ## a local daemon (the default) and/or an AMPQ message queue. These messages are
@@ -62,10 +60,26 @@ base_url = ""
 # ip_block_list = ""                    # Defaults to .ip_block_list.txt in XML template directory
 # unlimited_allow_list = ""             # Defaults to .unlimited_allow_list.txt in XML directory
 
+
+[erddaputil.tomcat]
 ## If ERDDAPUtil is instructed to fix the ERDDAP server's BPD permissions on boot, these are the
 ## values used (defaults are from the Axiom Docker install of ERDDAP).
-# tomcat_uid = 1000
-# tomcat_gid = 1000
+# uid = 1000
+# gid = 1000
+
+## Information about logging - this should match the configuration
+## set for AccessLogValve in server.xml or context.xml for ERDDAP
+# log_directory = ""
+# log_prefix = "access_log"
+# log_suffix = ""
+# log_pattern = "common"
+# log_encoding = "utf-8"
+
+## The Tomcat major version being used - impacts how request times
+## are parsed from log formats as Tomcat changed the units in v10.
+# major_version = 10
+
+
 
 [erddaputil.dataset_manager]
 ## Maximum number of datasets that can be pending reload at once
@@ -119,8 +133,38 @@ backups = ""
 ## Time in seconds to wait between re-scanning the log directory
 # sleep_time_seconds = 3600
 
-## List of file prefixes to remove
+## List of file prefixes to remove for ERDDAP
 # file_prefixes = ["logPreviousArchivedAt", "logArchivedAt", "emailLog"]
+
+## Set to true to also prune tomcat access logs with the same rules
+## Note that most versions of Tomcat can handle this for you.
+# include_tomcat = false
+
+## Set to false to not prune erddap logs
+# include_erddap = true
+
+## Set to false to not prune tomtail logs
+# include_tomtail = true
+
+[erddaputil.tomtail]
+## Set to false to disable tomcat access log parsing
+# enabled = true
+
+## Override the default location of the memory file of tomcat logs (defaults to current
+## working directory)
+# memory_file = "./.tomtail.mem"
+
+## Set this to an output directory to write output files.
+# output_directory = ""
+
+## Will be passed into datetime.datetime.now().strptime() to get the file.
+# output_file_pattern = "erddap_access_log_%Y%m%d.log"
+
+## Pattern to output, see documentation
+# output_pattern = "%dataset_id %request_type %s %b %T \"%U%q\""
+
+## Time to wait before starting another run (from start to start)
+# sleep_time_seconds = 30
 
 [erddaputil.ampq]
 ## If you are running multiple clusters, specify the cluster name here.
@@ -222,8 +266,8 @@ password = ""
 # enabled = true
 
 ## Set to the path of a file to store information about the last scrape of status.html
-## Defaults to {BIG_PARENT_DIRECTORY/.erddaputil_status_scraper_memory
-# memory_path = ""
+## Defaults to current working directory
+# memory_path = "./.status_scrape.mem"
 
 ## Change the default time between scraps
 # sleep_time_seconds = 300

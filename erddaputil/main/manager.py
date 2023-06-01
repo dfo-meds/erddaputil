@@ -6,6 +6,7 @@ from erddaputil.erddap.datasets import ErddapDatasetManager
 from erddaputil.main.metrics import ScriptMetrics
 from erddaputil.erddap.status import ErddapStatusScraper
 from erddaputil.webapp.common import AuthChecker
+from erddaputil.erddap.tomtail import TomcatLogTailer
 from autoinject import injector
 import zirconium as zr
 
@@ -20,25 +21,28 @@ class Application(BaseApplication):
         self._defs = {
             "receiver": CommandReceiver,
             "logman": ErddapLogManager,
-            "status_scarper": ErddapStatusScraper
+            "status_scarper": ErddapStatusScraper,
+            "tomtail": TomcatLogTailer
         }
         self._command_groups = []
 
     @injector.inject
     def _startup(self, edm: ErddapDatasetManager = None):
         """Pe-run setup stuff"""
+        super()._startup()
         # Make sure command groups got loaded here and give ErddapDatasetManager a chance to fail
         from erddaputil.erddap.commands import cg as _erddap_cg
         self._command_groups.append(_erddap_cg)
         self._on_boot()
 
-    def run(self):
+    def _run(self):
         """Kill and recreate threads as necessary"""
         for key in self._defs:
             if key not in self._live or not self._live[key].is_alive():
                 self._log.debug(f"(Re)starting thread {key}")
                 self._live[key] = self._defs[key]()
                 self._live[key].start()
+        super()._run()
 
     @injector.inject
     def _shutdown(self, metrics: ScriptMetrics = None):
@@ -51,6 +55,7 @@ class Application(BaseApplication):
             self._live[key].join()
         # Last, we will halt metrics to make sure everything got sent.
         metrics.halt()
+        super()._shutdown()
 
     @injector.inject
     def _on_boot(self, cfg: zr.ApplicationConfig = None, edm: ErddapDatasetManager = None, ac: AuthChecker = None):

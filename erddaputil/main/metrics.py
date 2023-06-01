@@ -4,6 +4,7 @@ import queue
 import zirconium as zr
 import base64
 import aiohttp
+from aiohttp.client_exceptions import ClientConnectionError
 import asyncio
 import zrlog
 from erddaputil.common import load_object, BaseThread
@@ -191,10 +192,7 @@ class LocalPrometheusSendThread(BaseThread):
 
     async def _handle_metrics(self, metrics: list, session):
         json_data = {"metrics": [metric.to_dict() for metric in metrics]}
-        # If we are crashing, prevent a lot of retries
-        if self._halt.is_set():
-            self._max_retries = 1
-        tries_left = max(0, self._max_retries) + 1
+        tries_left = max(1, self._max_retries)
         retry_forever = self._max_retries < 0
         while retry_forever or tries_left > 0:
             try:
@@ -208,9 +206,15 @@ class LocalPrometheusSendThread(BaseThread):
                                 self._log.warning(f"Error from web API for metrics: {error}, metric discarded")
                             break
                     raise Exception("Unrecognized response from server")
-            except Exception:
+            except Exception as ex:
                 tries_left -= 1
-                self._log.exception(f"Exception while sending metrics, retries: [{tries_left if not retry_forever else 'inf'}]")
+                if isinstance(ex, ClientConnectionError):
+                    self._log.error(f"Connection refused for {self._endpoint}, retries[{tries_left if not retry_forever else 'inf'}]")
+                else:
+                    self._log.exception(f"Exception while sending metrics, retries: [{tries_left if not retry_forever else 'inf'}]")
+                # Prevent more retries when crashing since the metrics app might not be available.
+                if self._halt.is_set():
+                    break
                 if retry_forever or tries_left > 0:
                     await asyncio.sleep(self._retry_delay)
         self._log.error(f"Failure to send {len(metrics)} metrics, see logs for more details")

@@ -42,6 +42,7 @@ class ErddapDatasetManager:
         self.datasets_directory = self.config.as_path(("erddaputil", "erddap", "datasets_d"), default=None)
         self.datasets_file = self.config.as_path(("erddaputil", "erddap", "datasets_xml"), default=None)
         self.backup_directory = self.config.as_path(("erddaputil", "dataset_manager", "backups"), default=None)
+
         if self.backup_directory and not self.backup_directory.exists():
             if self.backup_directory.parent.exists():
                 self.log.info(f"Creating backup directory {self.backup_directory}")
@@ -264,8 +265,8 @@ class ErddapDatasetManager:
         if not hasattr(os, 'chown'):
             self.log.warning(f"BPD permission fix requested on Windows, cannot execute.")
         else:
-            uid = self.config.as_int(("erddaputil", "erddap", "tomcat_uid"), default=1000)
-            gid = self.config.as_int(("erddaputil", "erddap", "tomcat_gid"), default=1000)
+            uid = self.config.as_int(("erddaputil", "tomcat", "uid"), default=1000)
+            gid = self.config.as_int(("erddaputil", "tomcat", "gid"), default=1000)
             os.chown(str(self.bpd), uid=uid, gid=gid)
 
     def _try_setting_active_flag(self, file_path: pathlib.Path, dataset_id: str, active_flag: bool) -> int:

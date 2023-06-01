@@ -29,6 +29,7 @@ management tools with a focus on containerization, automation, and clustering. T
    control_lists
    dataset_manager
    erddap_metrics
+   tomtail
    log_management
    config
    clustering

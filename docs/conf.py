@@ -14,7 +14,7 @@ sys.path.append(str(pathlib.Path(__file__).absolute().parent.parent))
 project = 'ERDDAPUtil'
 copyright = '2023, Erin Turnbull'
 author = 'Erin Turnbull'
-release = '0.2.0'
+release = '0.3.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

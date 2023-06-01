@@ -1,7 +1,6 @@
 zirconium>=1.2.4
 autoinject>=1.3.2
 zrlog>=0.3.0
-graceful_shutdown
 click
 pyyaml
 toml
@@ -9,8 +8,11 @@ flask
 prometheus_client
 requests
 aiohttp
+
 azure-identity
 azure-storage-blob
 bs4
 pika
 azure-servicebus
+
+graceful_shutdown
