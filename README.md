@@ -1,3 +1,5 @@
+[![Documentation Status](https://readthedocs.org/projects/erddaputil/badge/?version=latest)](https://erddaputil.readthedocs.io/en/latest/?badge=latest)
+  
 # ERDDAPUtil
 ERDDAPUtil provides additional tools for managing an ERDDAP installation which focus on:
 
