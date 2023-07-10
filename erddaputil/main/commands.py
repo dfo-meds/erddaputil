@@ -38,7 +38,7 @@ class Command:
         self.guid = _guid if _guid else str(uuid.uuid4())
 
     def __str__(self):
-        return f"COMMAND<{self.guid};{self.name};{';'.join(self.args)};{';'.join(k + '=' + self.kwargs[k] for k in self.kwargs)}>"
+        return f"COMMAND<{self.guid};{self.name};{';'.join(str(x) for x in self.args)};{';'.join(f'{k}={self.kwargs[k]}' for k in self.kwargs)}>"
 
     def ignore_host(self, hostname):
         self.ignore_on_hosts.append(str(hostname))
