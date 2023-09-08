@@ -48,29 +48,34 @@ class ErddapStatusScraper(BaseThread):
 
     def _load_remember(self):
         if self.status_scraper_memory_file and self.status_scraper_memory_file.exists():
-            self._log.debug(f"Loading memory file from {self.status_scraper_memory_file}")
+            self._log.trace(f"Loading memory file from {self.status_scraper_memory_file}")
             with open(self.status_scraper_memory_file, "r") as h:
                 self._remember = json.loads(h.read())
         else:
-            self._log.debug(f"Memory file {self.status_scraper_memory_file} does not exist")
+            self._log.trace(f"Memory file {self.status_scraper_memory_file} does not exist")
 
     def _save_remember(self):
         if self.status_scraper_memory_file:
-            self._log.debug(f"Saving memory file for scraper to {self.status_scraper_memory_file}")
+            self._log.trace(f"Saving memory file for scraper to {self.status_scraper_memory_file}")
             with open(self.status_scraper_memory_file, "w") as h:
                 h.write(json.dumps(self._remember))
         else:
-            self._log.debug(f"No memory file configured for status scraper")
+            self._log.trace(f"No memory file configured for status scraper")
 
     def _run(self, *args, **kwargs):
         if not self.enabled:
+            self._log.trace("Scraper not enabled")
             return None
-        if self._startup_at < time.monotonic():
+        if self._startup_at is not None and self._startup_at < time.monotonic():
+            self._log.trace(f"Startup time of [{self._startup_at}] not yet reached, currently [{time.monotonic()}]")
             return None
+        self._startup_at = None
         if self._last_run is not None and (time.monotonic() - self._last_run) < self.run_frequency:
+            self._log.trace(f"Next run time not yet reached")
             return None
         self._last_run = time.monotonic()
         if not self.base_url:
+            self._log.warning(f"Base URL not configured")
             return False
         self._log.info(f"Downloading status.html and parsing for statistics")
         try:

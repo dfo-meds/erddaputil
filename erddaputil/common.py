@@ -206,8 +206,9 @@ class BaseThread(threading.Thread):
     @injector.as_thread_run
     def run(self):
         try:
+            self._log.trace("starting thread setup")
             self._setup()
-
+            self._log.trace("starting main thread loop")
             while not self._halt.is_set():
                 result = None
                 start_time = timeit.default_timer()
@@ -227,6 +228,7 @@ class BaseThread(threading.Thread):
                 self._sleep(self._loop_delay)
 
         finally:
+            self._log.trace("cleaning up thread")
             self._cleanup()
 
     def _sleep(self, time: float):
