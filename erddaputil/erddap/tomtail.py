@@ -74,6 +74,8 @@ class TomcatLogTailer(BaseThread):
                     continue
                 seen.add(file.path)
                 total += self._check_tomcat_access_file(file.path)
+        else:
+            self._log.debug(f"Tomcat log directory [{self.tomcat_logs}] does not exist")
         if not self._halt.is_set():
             keys = list(self._position_memory.keys())
             changed = False
@@ -83,20 +85,21 @@ class TomcatLogTailer(BaseThread):
                     changed = True
             if changed:
                 self._save_memory_file()
-        self._log.debug(f"Tomcat log parsing complete, found {total} records")
+        self._log.info(f"Tomcat log parsing complete, found {total} records in {len(seen)} files")
         return True
 
     def _check_tomcat_access_file(self, file_path):
         mem_key = str(file_path)
         if mem_key not in self._position_memory:
-            self._log.debug(f"No record of {mem_key} found, resetting to 0")
+            self._log.trace(f"No record of {mem_key} found, resetting to 0")
             self._position_memory[mem_key] = 0
         with open(file_path, 'r', encoding=self._tomcat_log_encoding) as h:
             h.seek(0, 2)
             if h.tell() == self._position_memory[mem_key]:
-                # No changes since last check
+                self._log.trace(f"No new records in [{file_path}]")
                 return 0
             else:
+                self._log.trace(f"New records in [{file_path}]")
                 total = 0
                 h.seek(self._position_memory[mem_key], 0)
                 handle = None
@@ -119,14 +122,14 @@ class TomcatLogTailer(BaseThread):
                 content = h.read()
                 if content:
                     self._position_memory = json.loads(content)
-                    self._log.debug(f"{len(self._position_memory)} entries read from tomtail memory file")
+                    self._log.trace(f"{len(self._position_memory)} entries read from tomtail memory file")
                 else:
-                    self._log.debug("Tomtail memory file empty")
+                    self._log.trace("Tomtail memory file empty")
         else:
-            self._log.debug(f"Tomtail memory file {self.memory_file} does not exist")
+            self._log.trace(f"Tomtail memory file {self.memory_file} does not exist")
 
     def _save_memory_file(self):
-        self._log.debug(f"Writing tomcat tailer memory file to {self.memory_file}")
+        self._log.trace(f"Writing tomcat tailer memory file to {self.memory_file}")
         with open(self.memory_file, 'w') as h:
             h.write(json.dumps(self._position_memory))
 
@@ -153,8 +156,10 @@ class TomcatLogTailer(BaseThread):
 
     def _check_tomcat_file_name(self, filename):
         if self._tomcat_log_prefix and not filename.startswith(self._tomcat_log_prefix):
+            self._log.trace(f"[{filename}] failed prefix check")
             return False
         if self._tomcat_log_suffix and not filename.endswith(self._tomcat_log_suffix):
+            self._log.trace(f"[{filename}] failed suffix check")
             return False
         return True
 
