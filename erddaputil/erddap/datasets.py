@@ -238,13 +238,13 @@ class ErddapDatasetManager:
         self.log.info(f"Recompilation of datasets requested")
         self._queue_recompilation(skip_errored_datasets, reload_all_datasets, immediate)
 
-    def reload_dataset(self, dataset_ids: STR_OR_ITER, flag: int = 0, flush: bool = False):
+    def reload_dataset(self, dataset_id: STR_OR_ITER, flag: int = 0, flush: bool = False):
         """Queue a dataset for reloading."""
         self.check_can_reload()
         if flag not in (0, 1, 2):
             raise ValueError(f"Invalid flag value: {flag}")
-        self.log.info(f"Reload[{flag}] of {dataset_ids} requested")
-        for ds_id in AllowBlockListFile.input_to_set(dataset_ids):
+        self.log.info(f"Reload[{flag}] of {dataset_id} requested")
+        for ds_id in AllowBlockListFile.input_to_set(dataset_id):
             ds_id = ds_id.strip()
             if not ds_id:
                 continue

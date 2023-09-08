@@ -13,6 +13,7 @@ class LogFileDirectory:
         self.directory = base_directory
         self.criteria = file_criteria
 
+
 class ErddapLogManager(BaseThread):
 
     metrics: ScriptMetrics = None
