@@ -59,8 +59,11 @@ class WebCollectedMetrics:
         elif type_name == "summary":
             metric = Summary(metric_name, description, [str(x) for x in labels.keys()])
         elif type_name == 'histogram':
-            buckets = kwargs.pop('_buckets', default=None)
-            metric = Histogram(metric_name, description, [str(x) for x in labels.keys()], buckets=buckets)
+            buckets = kwargs.pop('_buckets', None)
+            if buckets is not None:
+                metric = Histogram(metric_name, description, [str(x) for x in labels.keys()], buckets=buckets)
+            else:
+                metric = Histogram(metric_name, description, [str(x) for x in labels.keys()])
         elif type_name == 'info':
             metric = Info(metric_name, description, [str(x) for x in labels.keys()])
         elif type_name == 'enum':
@@ -97,7 +100,4 @@ def handle_metrics(wc_metrics: WebCollectedMetrics = None):
             errors.append(str(ex))
             result = "error"
             PROM_METRICS.labels(result="error").inc()
-            flask.jsonify()
-    return {'errors': errors, 'success': result == 'success'}
-
-
+    return flask.jsonify({'errors': errors, 'success': result == 'success'})
