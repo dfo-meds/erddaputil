@@ -74,9 +74,10 @@ class AuthChecker:
         self.password_file = self.config.as_path(("erddaputil", "webapp", "password_file"), default=None)
         if not self.password_file:
             self._log.warning(f"Password file is not configured, authentication will not work")
-        elif not self.password_file.parent.exists():
-            self._log.warning(f"Password file directory does not exist, authentication will not work")
-            self.password_file = None
+        elif not self.password_file.exists():
+            parent_dir = self.password_file.parent
+            if not parent_dir.exists():
+                parent_dir.mkdir(parents=True)
         self.passwords = {}
         self._load_time = None
         self.peppers = self.config.as_list(("erddaputil", "webapp", "peppers"), default=[""])
@@ -101,15 +102,15 @@ class AuthChecker:
             self._load_time = os.path.getmtime(self.password_file)
             self._log.info(f"{len(self.passwords)} passwords loaded from {self.password_file}")
 
-    def _save_passwords(self):
-        if self.password_file:
+    def _save_passwords(self) -> bool:
+        if self.password_file and self.password_file.parent.exists():
             self._log.info(f"Saving passwords to file")
             with open(self.password_file, "w") as h:
                 for un in self.passwords:
                     hn, salt, iters, phash = self.passwords[un]
                     h.write(f"{un}||{hn}||{salt}||{iters}||{phash}\n")
         else:
-            raise ValueError("No password file set")
+            raise ValueError(f"Password file directory {self.password_file.parent} does not exist")
 
     def _recheck_password_file(self):
         if self.password_file and self.password_file.exists():
